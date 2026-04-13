@@ -6,7 +6,14 @@ import { WebSocketServer } from 'ws';
 import pino from 'pino';
 
 import { initDb, closeDb } from './db.js';
-import { initAuth, loginUser, verifyToken, requireAuth, requireCapability } from './auth.js';
+import {
+  initAuth,
+  loginUser,
+  verifyToken,
+  requireAuth,
+  requireAdmin,
+  requireCapability,
+} from './auth.js';
 import type { AuthRequest } from './auth.js';
 import { StateEngine } from './state.js';
 import { PolicyEngine } from './policy.js';
@@ -173,11 +180,11 @@ app.get('/harbor/state', requireCapability('read'), (req: AuthRequest, res) => {
 
 // --- Admin endpoints (requires user auth) ---
 
-app.get('/api/capabilities', requireAuth, (_req, res) => {
+app.get('/api/capabilities', requireAdmin, (_req, res) => {
   res.json(listAgentProfiles());
 });
 
-app.post('/api/capabilities/token', requireAuth, (req, res) => {
+app.post('/api/capabilities/token', requireAdmin, (req, res) => {
   const { agentId } = req.body;
   if (!agentId) {
     res.status(400).json({ error: 'agentId required' });
@@ -187,7 +194,7 @@ app.post('/api/capabilities/token', requireAuth, (req, res) => {
   res.json({ agentId, token });
 });
 
-app.post('/api/capabilities/tokens/all', requireAuth, (_req, res) => {
+app.post('/api/capabilities/tokens/all', requireAdmin, (_req, res) => {
   const tokens = generateAllAgentTokens();
   res.json(tokens);
 });

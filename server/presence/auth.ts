@@ -137,6 +137,19 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
 }
 
 /**
+ * Express middleware — requires an authenticated admin user.
+ */
+export function requireAdmin(req: AuthRequest, res: Response, next: NextFunction): void {
+  requireAuth(req, res, () => {
+    if (req.userRole !== 'admin') {
+      res.status(403).json({ error: 'Admin role required' });
+      return;
+    }
+    next();
+  });
+}
+
+/**
  * Express middleware — requires valid capability token with the given capability.
  */
 export function requireCapability(cap: string) {
