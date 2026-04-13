@@ -1,0 +1,88 @@
+import { create } from 'zustand';
+import type { WorldState, ChatMessage, AgentState } from './types';
+
+interface HarborStore {
+  // Auth
+  token: string | null;
+  login: (token: string) => void;
+  logout: () => void;
+
+  // World
+  worldState: WorldState | null;
+  updateState: (state: WorldState) => void;
+  addEvent: (event: { agentId: string; patch: Partial<AgentState> }) => void;
+
+  // Chat
+  chatMessages: ChatMessage[];
+  addChatMessage: (msg: ChatMessage) => void;
+
+  // Connection
+  connected: boolean;
+  setConnected: (connected: boolean) => void;
+}
+
+const STORAGE_KEY = 'harbor_token';
+
+function loadToken(): string | null {
+  try {
+    return localStorage.getItem(STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function saveToken(token: string | null) {
+  try {
+    if (token) {
+      localStorage.setItem(STORAGE_KEY, token);
+    } else {
+      localStorage.removeItem(STORAGE_KEY);
+    }
+  } catch {
+    // ignore storage errors
+  }
+}
+
+export const useStore = create<HarborStore>((set) => ({
+  // Auth
+  token: loadToken(),
+  login: (token: string) => {
+    saveToken(token);
+    set({ token });
+  },
+  logout: () => {
+    saveToken(null);
+    set({ token: null, worldState: null, chatMessages: [], connected: false });
+  },
+
+  // World
+  worldState: null,
+  updateState: (state: WorldState) => set({ worldState: state }),
+  addEvent: (event) =>
+    set((s) => {
+      if (!s.worldState) return s;
+      const agent = s.worldState.agents[event.agentId];
+      if (!agent) return s;
+      return {
+        worldState: {
+          ...s.worldState,
+          agents: {
+            ...s.worldState.agents,
+            [event.agentId]: { ...agent, ...event.patch },
+          },
+          sequence: s.worldState.sequence + 1,
+        },
+      };
+    }),
+
+  // Chat
+  chatMessages: [],
+  addChatMessage: (msg: ChatMessage) =>
+    set((s) => ({
+      chatMessages: [...s.chatMessages.slice(-49), msg],
+    })),
+
+  // Connection
+  connected: false,
+  setConnected: (connected: boolean) => set({ connected }),
+}));
