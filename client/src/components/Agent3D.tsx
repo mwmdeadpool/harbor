@@ -33,7 +33,8 @@ export function Agent3D({ agent }: Agent3DProps) {
       if (agent.speaking) {
         const pulse = 0.8 + Math.sin(bobOffset.current * 4) * 0.4;
         glowRef.current.scale.setScalar(pulse);
-        (glowRef.current.material as THREE.MeshBasicMaterial).opacity = 0.15 + Math.sin(bobOffset.current * 4) * 0.1;
+        (glowRef.current.material as THREE.MeshBasicMaterial).opacity =
+          0.15 + Math.sin(bobOffset.current * 4) * 0.1;
       } else {
         glowRef.current.scale.setScalar(0);
       }
@@ -41,7 +42,10 @@ export function Agent3D({ agent }: Agent3DProps) {
   });
 
   return (
-    <group ref={groupRef} position={[agent.position.x, agent.position.y, agent.position.z]}>
+    <group
+      ref={groupRef}
+      position={[agent.position.x, agent.position.y, agent.position.z]}
+    >
       {/* Body — capsule shape using cylinder + two spheres */}
       <mesh position={[0, 0.7, 0]} castShadow>
         <cylinderGeometry args={[0.25, 0.3, 0.8, 16]} />
@@ -63,13 +67,21 @@ export function Agent3D({ agent }: Agent3DProps) {
       {/* Base/feet */}
       <mesh position={[0, 0.15, 0]}>
         <cylinderGeometry args={[0.3, 0.35, 0.3, 16]} />
-        <meshStandardMaterial color={new THREE.Color(color).multiplyScalar(0.6)} roughness={0.6} />
+        <meshStandardMaterial
+          color={new THREE.Color(color).multiplyScalar(0.6)}
+          roughness={0.6}
+        />
       </mesh>
 
       {/* Speaking glow ring */}
       <mesh ref={glowRef} position={[0, 0.7, 0]} scale={0}>
         <sphereGeometry args={[0.6, 16, 16]} />
-        <meshBasicMaterial color={color} transparent opacity={0.15} side={THREE.BackSide} />
+        <meshBasicMaterial
+          color={color}
+          transparent
+          opacity={0.15}
+          side={THREE.BackSide}
+        />
       </mesh>
 
       {/* Eye dots — give them a face */}
@@ -133,11 +145,7 @@ export function Agent3D({ agent }: Agent3DProps) {
 
       {/* Speaking indicator */}
       {agent.speaking && (
-        <Html
-          position={[0.4, 1.5, 0]}
-          center
-          style={{ pointerEvents: 'none' }}
-        >
+        <Html position={[0.4, 1.5, 0]} center style={{ pointerEvents: 'none' }}>
           <div
             style={{
               width: '10px',
@@ -174,12 +182,19 @@ export function Agent3D({ agent }: Agent3DProps) {
 
 function getMoodColor(mood: string): string {
   switch (mood) {
-    case 'happy': return '#44ff44';
-    case 'focused': return '#4488ff';
-    case 'excited': return '#ffcc00';
-    case 'thinking': return '#aa88ff';
-    case 'stressed': return '#ff4444';
-    case 'chill': return '#44dddd';
-    default: return '#888888';
+    case 'happy':
+      return '#44ff44';
+    case 'focused':
+      return '#4488ff';
+    case 'excited':
+      return '#ffcc00';
+    case 'thinking':
+      return '#aa88ff';
+    case 'stressed':
+      return '#ff4444';
+    case 'chill':
+      return '#44dddd';
+    default:
+      return '#888888';
   }
 }

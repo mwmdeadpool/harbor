@@ -35,7 +35,10 @@ export class PolicyEngine {
     record.timestamps = record.timestamps.filter((t) => t > cutoff);
 
     if (record.timestamps.length >= RATE_LIMIT_MAX) {
-      log.warn({ agentId, action, count: record.timestamps.length }, 'Rate limit exceeded');
+      log.warn(
+        { agentId, action, count: record.timestamps.length },
+        'Rate limit exceeded',
+      );
       return {
         approved: false,
         reason: `Rate limit exceeded: ${record.timestamps.length}/${RATE_LIMIT_MAX} actions in the last minute`,

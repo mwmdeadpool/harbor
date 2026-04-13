@@ -30,9 +30,7 @@ const styles = {
     height: '8px',
     borderRadius: '50%',
     background: connected ? '#44cc66' : '#cc4444',
-    boxShadow: connected
-      ? '0 0 6px #44cc66'
-      : '0 0 6px #cc4444',
+    boxShadow: connected ? '0 0 6px #44cc66' : '0 0 6px #cc4444',
   }),
   label: {
     fontSize: '10px',
@@ -60,7 +58,9 @@ export function HUD() {
       {/* Connection status */}
       <div style={styles.badge}>
         <div style={styles.dot(connected)} />
-        <span style={styles.value}>{connected ? 'Connected' : 'Disconnected'}</span>
+        <span style={styles.value}>
+          {connected ? 'Connected' : 'Disconnected'}
+        </span>
       </div>
 
       {/* Agent count */}

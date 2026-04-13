@@ -8,14 +8,64 @@ export const DEFAULT_ROOM: RoomConfig = {
   width: 30,
   depth: 30,
   zones: [
-    { id: 'desk-margot', name: 'Margot', type: 'desk', position: { x: -8, y: 0, z: -6 }, size: { width: 3, depth: 2 } },
-    { id: 'desk-bud', name: 'Bud', type: 'desk', position: { x: -3, y: 0, z: -6 }, size: { width: 3, depth: 2 } },
-    { id: 'desk-lou', name: 'Lou', type: 'desk', position: { x: 2, y: 0, z: -6 }, size: { width: 3, depth: 2 } },
-    { id: 'desk-nygma', name: 'Nygma', type: 'desk', position: { x: 7, y: 0, z: -6 }, size: { width: 3, depth: 2 } },
-    { id: 'desk-ivy', name: 'Ivy', type: 'desk', position: { x: -8, y: 0, z: -1 }, size: { width: 3, depth: 2 } },
-    { id: 'desk-harvey', name: 'Harvey', type: 'desk', position: { x: -3, y: 0, z: -1 }, size: { width: 3, depth: 2 } },
-    { id: 'lounge', name: 'Lounge', type: 'lounge', position: { x: 6, y: 0, z: 4 }, size: { width: 8, depth: 6 }, color: '#1e2d40' },
-    { id: 'meeting', name: 'Meeting Room', type: 'meeting', position: { x: -6, y: 0, z: 6 }, size: { width: 7, depth: 5 }, color: '#2d1e40' },
+    {
+      id: 'desk-margot',
+      name: 'Margot',
+      type: 'desk',
+      position: { x: -8, y: 0, z: -6 },
+      size: { width: 3, depth: 2 },
+    },
+    {
+      id: 'desk-bud',
+      name: 'Bud',
+      type: 'desk',
+      position: { x: -3, y: 0, z: -6 },
+      size: { width: 3, depth: 2 },
+    },
+    {
+      id: 'desk-lou',
+      name: 'Lou',
+      type: 'desk',
+      position: { x: 2, y: 0, z: -6 },
+      size: { width: 3, depth: 2 },
+    },
+    {
+      id: 'desk-nygma',
+      name: 'Nygma',
+      type: 'desk',
+      position: { x: 7, y: 0, z: -6 },
+      size: { width: 3, depth: 2 },
+    },
+    {
+      id: 'desk-ivy',
+      name: 'Ivy',
+      type: 'desk',
+      position: { x: -8, y: 0, z: -1 },
+      size: { width: 3, depth: 2 },
+    },
+    {
+      id: 'desk-harvey',
+      name: 'Harvey',
+      type: 'desk',
+      position: { x: -3, y: 0, z: -1 },
+      size: { width: 3, depth: 2 },
+    },
+    {
+      id: 'lounge',
+      name: 'Lounge',
+      type: 'lounge',
+      position: { x: 6, y: 0, z: 4 },
+      size: { width: 8, depth: 6 },
+      color: '#1e2d40',
+    },
+    {
+      id: 'meeting',
+      name: 'Meeting Room',
+      type: 'meeting',
+      position: { x: -6, y: 0, z: 6 },
+      size: { width: 7, depth: 5 },
+      color: '#2d1e40',
+    },
   ],
 };
 
@@ -49,7 +99,7 @@ function WallOutlines({ width, depth }: { width: number; depth: number }) {
         opacity: 0.3,
         side: THREE.DoubleSide,
       }),
-    []
+    [],
   );
 
   return (
@@ -59,21 +109,47 @@ function WallOutlines({ width, depth }: { width: number; depth: number }) {
         <planeGeometry args={[width, wallHeight]} />
       </mesh>
       {/* Left wall */}
-      <mesh position={[-halfW, wallHeight / 2, 0]} rotation-y={Math.PI / 2} material={wallMaterial}>
+      <mesh
+        position={[-halfW, wallHeight / 2, 0]}
+        rotation-y={Math.PI / 2}
+        material={wallMaterial}
+      >
         <planeGeometry args={[depth, wallHeight]} />
       </mesh>
       {/* Right wall */}
-      <mesh position={[halfW, wallHeight / 2, 0]} rotation-y={-Math.PI / 2} material={wallMaterial}>
+      <mesh
+        position={[halfW, wallHeight / 2, 0]}
+        rotation-y={-Math.PI / 2}
+        material={wallMaterial}
+      >
         <planeGeometry args={[depth, wallHeight]} />
       </mesh>
       {/* Wall edge lines */}
       {[
-        [[-halfW, 0, -halfD], [halfW, 0, -halfD]],
-        [[-halfW, 0, -halfD], [-halfW, 0, halfD]],
-        [[halfW, 0, -halfD], [halfW, 0, halfD]],
-        [[-halfW, wallHeight, -halfD], [halfW, wallHeight, -halfD]],
-        [[-halfW, 0, -halfD], [-halfW, wallHeight, -halfD]],
-        [[halfW, 0, -halfD], [halfW, wallHeight, -halfD]],
+        [
+          [-halfW, 0, -halfD],
+          [halfW, 0, -halfD],
+        ],
+        [
+          [-halfW, 0, -halfD],
+          [-halfW, 0, halfD],
+        ],
+        [
+          [halfW, 0, -halfD],
+          [halfW, 0, halfD],
+        ],
+        [
+          [-halfW, wallHeight, -halfD],
+          [halfW, wallHeight, -halfD],
+        ],
+        [
+          [-halfW, 0, -halfD],
+          [-halfW, wallHeight, -halfD],
+        ],
+        [
+          [halfW, 0, -halfD],
+          [halfW, wallHeight, -halfD],
+        ],
       ].map(([start, end], i) => {
         const points = [
           new THREE.Vector3(start[0], start[1], start[2]),
@@ -105,9 +181,9 @@ function Desk({ zone }: { zone: Zone }) {
       {/* Legs */}
       {[
         [-(size.width / 2 - 0.1), deskHeight / 2, -(size.depth / 2 - 0.1)],
-        [(size.width / 2 - 0.1), deskHeight / 2, -(size.depth / 2 - 0.1)],
-        [-(size.width / 2 - 0.1), deskHeight / 2, (size.depth / 2 - 0.1)],
-        [(size.width / 2 - 0.1), deskHeight / 2, (size.depth / 2 - 0.1)],
+        [size.width / 2 - 0.1, deskHeight / 2, -(size.depth / 2 - 0.1)],
+        [-(size.width / 2 - 0.1), deskHeight / 2, size.depth / 2 - 0.1],
+        [size.width / 2 - 0.1, deskHeight / 2, size.depth / 2 - 0.1],
       ].map(([lx, ly, lz], i) => (
         <mesh key={i} position={[lx, ly, lz]}>
           <boxGeometry args={[0.08, deskHeight, 0.08]} />
@@ -117,7 +193,11 @@ function Desk({ zone }: { zone: Zone }) {
       {/* Monitor */}
       <mesh position={[0, deskHeight + 0.35, -(size.depth / 2 - 0.15)]}>
         <boxGeometry args={[0.8, 0.5, 0.04]} />
-        <meshStandardMaterial color="#111118" emissive="#1a1a3e" emissiveIntensity={0.5} />
+        <meshStandardMaterial
+          color="#111118"
+          emissive="#1a1a3e"
+          emissiveIntensity={0.5}
+        />
       </mesh>
       {/* Name label */}
       <Text
@@ -162,7 +242,9 @@ interface RoomProps {
 export function Room({ config }: RoomProps) {
   const room = config || DEFAULT_ROOM;
   const desks = room.zones.filter((z) => z.type === 'desk');
-  const areas = room.zones.filter((z) => z.type === 'lounge' || z.type === 'meeting');
+  const areas = room.zones.filter(
+    (z) => z.type === 'lounge' || z.type === 'meeting',
+  );
 
   return (
     <group>

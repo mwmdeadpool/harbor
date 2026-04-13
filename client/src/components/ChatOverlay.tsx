@@ -103,7 +103,14 @@ export function ChatOverlay({ onSend }: ChatOverlayProps) {
       <div style={styles.header}>Chat</div>
       <div ref={messagesContainerRef} style={styles.messages}>
         {messages.length === 0 && (
-          <div style={{ color: '#555566', fontSize: '13px', padding: '12px 0', textAlign: 'center' }}>
+          <div
+            style={{
+              color: '#555566',
+              fontSize: '13px',
+              padding: '12px 0',
+              textAlign: 'center',
+            }}
+          >
             No messages yet. Say something.
           </div>
         )}

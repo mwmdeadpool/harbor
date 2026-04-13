@@ -59,7 +59,11 @@ let intentionalClose = false;
 
 // --- Internal Helpers ---
 
-function log(level: 'info' | 'warn' | 'error' | 'debug', msg: string, data?: Record<string, unknown>): void {
+function log(
+  level: 'info' | 'warn' | 'error' | 'debug',
+  msg: string,
+  data?: Record<string, unknown>,
+): void {
   const prefix = `[harbor-adapter]`;
   const extra = data ? ` ${JSON.stringify(data)}` : '';
   if (level === 'error') {
@@ -102,7 +106,10 @@ function scheduleReconnect(): void {
   const backoff = Math.min(delay * Math.pow(1.5, reconnectAttempts), 30000);
   reconnectAttempts++;
 
-  log('info', `Reconnecting in ${Math.round(backoff)}ms (attempt ${reconnectAttempts}/${maxAttempts})`);
+  log(
+    'info',
+    `Reconnecting in ${Math.round(backoff)}ms (attempt ${reconnectAttempts}/${maxAttempts})`,
+  );
   reconnectTimer = setTimeout(() => {
     connectWs().catch((err) => {
       log('error', 'Reconnect failed', { err: String(err) });
@@ -129,7 +136,9 @@ function handleIncoming(raw: string): void {
         room?: string;
       };
       if (!payload.sender || !payload.content) {
-        log('debug', 'Ignoring incomplete chat:message', { payload: msg.payload });
+        log('debug', 'Ignoring incomplete chat:message', {
+          payload: msg.payload,
+        });
         return;
       }
       if (messageCallback) {
@@ -164,7 +173,8 @@ function handleIncoming(raw: string): void {
 }
 
 async function connectWs(): Promise<void> {
-  if (!config) throw new Error('Adapter not initialized — call initAdapter() first');
+  if (!config)
+    throw new Error('Adapter not initialized — call initAdapter() first');
 
   const wsUrl = config.serverUrl.replace(/^http/, 'ws') + '/ws/adapter';
 
@@ -216,7 +226,9 @@ async function connectWs(): Promise<void> {
 /**
  * Initialize the Harbor adapter and connect to the Harbor server.
  */
-export async function initAdapter(adapterConfig: HarborAdapterConfig): Promise<void> {
+export async function initAdapter(
+  adapterConfig: HarborAdapterConfig,
+): Promise<void> {
   config = adapterConfig;
   intentionalClose = false;
   reconnectAttempts = 0;
@@ -269,7 +281,10 @@ export function onHarborMessage(callback: HarborMessageCallback): void {
 /**
  * Update an agent's presence/activity state in Harbor.
  */
-export function updateAgentPresence(agentId: string, activity: AgentActivity): boolean {
+export function updateAgentPresence(
+  agentId: string,
+  activity: AgentActivity,
+): boolean {
   return send({
     type: 'agent:state',
     payload: { agentId, activity },
