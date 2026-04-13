@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main]
+
+jobs:
+  typecheck:
+    name: typecheck
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        dir: [server, client]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ${{ matrix.dir }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ matrix.dir }}
+        run: npm ci
+
+      - name: Typecheck
+        working-directory: ${{ matrix.dir }}
+        run: npx tsc --noEmit
+
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        dir: [server, client]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ${{ matrix.dir }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ matrix.dir }}
+        run: npm ci
+
+      - name: Build
+        working-directory: ${{ matrix.dir }}
+        run: npm run build
+
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Prettier check
+        run: npx prettier --check "**/*.{ts,tsx}"
