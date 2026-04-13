@@ -3,7 +3,7 @@
  *
  * Bridge between NanoClaw agent orchestration and Harbor's 3D presence system.
  * Converts NanoClaw agent responses → Harbor presence updates (speaking state, chat).
- * Converts Harbor user input (Puddin' typing in 3D chat) → NanoClaw inbound messages.
+ * Converts Harbor user input (user typing in 3D chat) → NanoClaw inbound messages.
  */
 
 import WebSocket from 'ws';
@@ -22,7 +22,7 @@ export interface HarborAdapterConfig {
 }
 
 export interface HarborInboundMessage {
-  /** User who sent the message (e.g. "Darian") */
+  /** User who sent the message */
   sender: string;
   /** The text content */
   content: string;
