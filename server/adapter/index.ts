@@ -3,7 +3,7 @@
  *
  * Bridge between NanoClaw agent orchestration and Harbor's 3D presence system.
  * Converts NanoClaw agent responses → Harbor presence updates (speaking state, chat).
- * Converts Harbor user input (Puddin' typing in 3D chat) → NanoClaw inbound messages.
+ * Converts Harbor user input (user typing in 3D chat) → NanoClaw inbound messages.
  */
 
 import WebSocket from 'ws';
@@ -22,7 +22,7 @@ export interface HarborAdapterConfig {
 }
 
 export interface HarborInboundMessage {
-  /** User who sent the message (e.g. "Darian") */
+  /** User who sent the message */
   sender: string;
   /** The text content */
   content: string;
@@ -34,13 +34,7 @@ export interface HarborInboundMessage {
 
 export type HarborMessageCallback = (message: HarborInboundMessage) => void;
 
-export type AgentActivity =
-  | 'idle'
-  | 'working'
-  | 'speaking'
-  | 'listening'
-  | 'thinking'
-  | 'moving';
+export type AgentActivity = 'idle' | 'working' | 'speaking' | 'listening' | 'thinking' | 'moving';
 
 interface HarborWsMessage {
   type: string;
@@ -59,7 +53,11 @@ let intentionalClose = false;
 
 // --- Internal Helpers ---
 
-function log(level: 'info' | 'warn' | 'error' | 'debug', msg: string, data?: Record<string, unknown>): void {
+function log(
+  level: 'info' | 'warn' | 'error' | 'debug',
+  msg: string,
+  data?: Record<string, unknown>,
+): void {
   const prefix = `[harbor-adapter]`;
   const extra = data ? ` ${JSON.stringify(data)}` : '';
   if (level === 'error') {
@@ -102,7 +100,10 @@ function scheduleReconnect(): void {
   const backoff = Math.min(delay * Math.pow(1.5, reconnectAttempts), 30000);
   reconnectAttempts++;
 
-  log('info', `Reconnecting in ${Math.round(backoff)}ms (attempt ${reconnectAttempts}/${maxAttempts})`);
+  log(
+    'info',
+    `Reconnecting in ${Math.round(backoff)}ms (attempt ${reconnectAttempts}/${maxAttempts})`,
+  );
   reconnectTimer = setTimeout(() => {
     connectWs().catch((err) => {
       log('error', 'Reconnect failed', { err: String(err) });
@@ -129,7 +130,9 @@ function handleIncoming(raw: string): void {
         room?: string;
       };
       if (!payload.sender || !payload.content) {
-        log('debug', 'Ignoring incomplete chat:message', { payload: msg.payload });
+        log('debug', 'Ignoring incomplete chat:message', {
+          payload: msg.payload,
+        });
         return;
       }
       if (messageCallback) {

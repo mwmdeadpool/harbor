@@ -33,7 +33,8 @@ export function Agent3D({ agent }: Agent3DProps) {
       if (agent.speaking) {
         const pulse = 0.8 + Math.sin(bobOffset.current * 4) * 0.4;
         glowRef.current.scale.setScalar(pulse);
-        (glowRef.current.material as THREE.MeshBasicMaterial).opacity = 0.15 + Math.sin(bobOffset.current * 4) * 0.1;
+        (glowRef.current.material as THREE.MeshBasicMaterial).opacity =
+          0.15 + Math.sin(bobOffset.current * 4) * 0.1;
       } else {
         glowRef.current.scale.setScalar(0);
       }
@@ -133,11 +134,7 @@ export function Agent3D({ agent }: Agent3DProps) {
 
       {/* Speaking indicator */}
       {agent.speaking && (
-        <Html
-          position={[0.4, 1.5, 0]}
-          center
-          style={{ pointerEvents: 'none' }}
-        >
+        <Html position={[0.4, 1.5, 0]} center style={{ pointerEvents: 'none' }}>
           <div
             style={{
               width: '10px',
@@ -161,11 +158,7 @@ export function Agent3D({ agent }: Agent3DProps) {
       {agent.mood && agent.mood !== 'neutral' && (
         <mesh position={[0, 0.02, 0]} rotation-x={-Math.PI / 2}>
           <ringGeometry args={[0.35, 0.45, 24]} />
-          <meshBasicMaterial
-            color={getMoodColor(agent.mood)}
-            transparent
-            opacity={0.4}
-          />
+          <meshBasicMaterial color={getMoodColor(agent.mood)} transparent opacity={0.4} />
         </mesh>
       )}
     </group>
@@ -174,12 +167,19 @@ export function Agent3D({ agent }: Agent3DProps) {
 
 function getMoodColor(mood: string): string {
   switch (mood) {
-    case 'happy': return '#44ff44';
-    case 'focused': return '#4488ff';
-    case 'excited': return '#ffcc00';
-    case 'thinking': return '#aa88ff';
-    case 'stressed': return '#ff4444';
-    case 'chill': return '#44dddd';
-    default: return '#888888';
+    case 'happy':
+      return '#44ff44';
+    case 'focused':
+      return '#4488ff';
+    case 'excited':
+      return '#ffcc00';
+    case 'thinking':
+      return '#aa88ff';
+    case 'stressed':
+      return '#ff4444';
+    case 'chill':
+      return '#44dddd';
+    default:
+      return '#888888';
   }
 }

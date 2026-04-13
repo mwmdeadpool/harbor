@@ -1,5 +1,10 @@
 import pino from 'pino';
-import { persistEvent, getEventsSince as dbGetEventsSince, getLatestSnapshot, saveSnapshot } from './db.js';
+import {
+  persistEvent,
+  getEventsSince as dbGetEventsSince,
+  getLatestSnapshot,
+  saveSnapshot,
+} from './db.js';
 import type {
   WorldState,
   WorldEvent,
@@ -40,10 +45,10 @@ export class StateEngine {
       sequence: 0,
       timestamp: Date.now(),
       agents,
-      puddin: {
+      user: {
         online: false,
         lastSeen: 0,
-        zone: 'puddin-corner',
+        zone: 'user-corner',
         position: { x: 8, y: 0, z: 8 },
       },
       room: DEFAULT_ROOM_CONFIG,
@@ -176,16 +181,16 @@ export class StateEngine {
       }
 
       case 'user:join': {
-        this.state.puddin.online = true;
-        this.state.puddin.lastSeen = event.timestamp;
-        if (data.zone) this.state.puddin.zone = data.zone as string;
-        if (data.position) this.state.puddin.position = data.position as Position;
+        this.state.user.online = true;
+        this.state.user.lastSeen = event.timestamp;
+        if (data.zone) this.state.user.zone = data.zone as string;
+        if (data.position) this.state.user.position = data.position as Position;
         break;
       }
 
       case 'user:leave': {
-        this.state.puddin.online = false;
-        this.state.puddin.lastSeen = event.timestamp;
+        this.state.user.online = false;
+        this.state.user.lastSeen = event.timestamp;
         break;
       }
 

@@ -60,7 +60,7 @@ export function initDb(): Database.Database {
 
 const insertEventStmt = () =>
   getDb().prepare<[number, number, string, string | null, string]>(
-    'INSERT INTO events (sequence, timestamp, type, agent_id, data) VALUES (?, ?, ?, ?, ?)'
+    'INSERT INTO events (sequence, timestamp, type, agent_id, data) VALUES (?, ?, ?, ?, ?)',
   );
 
 export function persistEvent(event: WorldEvent & { sequence: number }): void {
@@ -69,7 +69,7 @@ export function persistEvent(event: WorldEvent & { sequence: number }): void {
     event.timestamp,
     event.type,
     event.agentId ?? null,
-    JSON.stringify(event.data)
+    JSON.stringify(event.data),
   );
 }
 
@@ -114,24 +114,20 @@ export function getLatestSnapshot(): WorldState | null {
 
 // --- User persistence ---
 
-export function getUser(
-  username: string
-): { id: string; username: string; password_hash: string; role: string } | null {
-  const row = getDb()
-    .prepare('SELECT * FROM users WHERE username = ?')
-    .get(username) as
+export function getUser(username: string): {
+  id: string;
+  username: string;
+  password_hash: string;
+  role: string;
+} | null {
+  const row = getDb().prepare('SELECT * FROM users WHERE username = ?').get(username) as
     | { id: string; username: string; password_hash: string; role: string }
     | undefined;
 
   return row ?? null;
 }
 
-export function createUser(
-  id: string,
-  username: string,
-  passwordHash: string,
-  role: string
-): void {
+export function createUser(id: string, username: string, passwordHash: string, role: string): void {
   getDb()
     .prepare('INSERT INTO users (id, username, password_hash, role) VALUES (?, ?, ?, ?)')
     .run(id, username, passwordHash, role);

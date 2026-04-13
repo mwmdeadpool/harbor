@@ -15,7 +15,9 @@ function getJwtSecret(): string {
   if (JWT_SECRET) return JWT_SECRET;
   JWT_SECRET = process.env.HARBOR_JWT_SECRET || crypto.randomBytes(32).toString('hex');
   if (!process.env.HARBOR_JWT_SECRET) {
-    log.warn('No HARBOR_JWT_SECRET set — generated ephemeral secret (tokens will not survive restarts)');
+    log.warn(
+      'No HARBOR_JWT_SECRET set — generated ephemeral secret (tokens will not survive restarts)',
+    );
   }
   return JWT_SECRET;
 }
@@ -79,11 +81,9 @@ export async function loginUser(username: string, password: string): Promise<str
   const valid = await bcrypt.compare(password, user.password_hash);
   if (!valid) throw new Error('Invalid credentials');
 
-  const token = jwt.sign(
-    { userId: user.id, role: user.role, type: 'user' },
-    getJwtSecret(),
-    { expiresIn: '24h' }
-  );
+  const token = jwt.sign({ userId: user.id, role: user.role, type: 'user' }, getJwtSecret(), {
+    expiresIn: '24h',
+  });
 
   log.info({ username, role: user.role }, 'User logged in');
   return token;
@@ -93,11 +93,9 @@ export async function loginUser(username: string, password: string): Promise<str
  * Create a capability token scoped to a specific agent and set of capabilities.
  */
 export function createCapabilityToken(agentId: string, capabilities: string[]): string {
-  return jwt.sign(
-    { agentId, capabilities, type: 'capability' },
-    getJwtSecret(),
-    { expiresIn: '7d' }
-  );
+  return jwt.sign({ agentId, capabilities, type: 'capability' }, getJwtSecret(), {
+    expiresIn: '7d',
+  });
 }
 
 /**

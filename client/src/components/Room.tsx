@@ -8,14 +8,64 @@ export const DEFAULT_ROOM: RoomConfig = {
   width: 30,
   depth: 30,
   zones: [
-    { id: 'desk-margot', name: 'Margot', type: 'desk', position: { x: -8, y: 0, z: -6 }, size: { width: 3, depth: 2 } },
-    { id: 'desk-bud', name: 'Bud', type: 'desk', position: { x: -3, y: 0, z: -6 }, size: { width: 3, depth: 2 } },
-    { id: 'desk-lou', name: 'Lou', type: 'desk', position: { x: 2, y: 0, z: -6 }, size: { width: 3, depth: 2 } },
-    { id: 'desk-nygma', name: 'Nygma', type: 'desk', position: { x: 7, y: 0, z: -6 }, size: { width: 3, depth: 2 } },
-    { id: 'desk-ivy', name: 'Ivy', type: 'desk', position: { x: -8, y: 0, z: -1 }, size: { width: 3, depth: 2 } },
-    { id: 'desk-harvey', name: 'Harvey', type: 'desk', position: { x: -3, y: 0, z: -1 }, size: { width: 3, depth: 2 } },
-    { id: 'lounge', name: 'Lounge', type: 'lounge', position: { x: 6, y: 0, z: 4 }, size: { width: 8, depth: 6 }, color: '#1e2d40' },
-    { id: 'meeting', name: 'Meeting Room', type: 'meeting', position: { x: -6, y: 0, z: 6 }, size: { width: 7, depth: 5 }, color: '#2d1e40' },
+    {
+      id: 'desk-margot',
+      name: 'Margot',
+      type: 'desk',
+      position: { x: -8, y: 0, z: -6 },
+      size: { width: 3, depth: 2 },
+    },
+    {
+      id: 'desk-bud',
+      name: 'Bud',
+      type: 'desk',
+      position: { x: -3, y: 0, z: -6 },
+      size: { width: 3, depth: 2 },
+    },
+    {
+      id: 'desk-lou',
+      name: 'Lou',
+      type: 'desk',
+      position: { x: 2, y: 0, z: -6 },
+      size: { width: 3, depth: 2 },
+    },
+    {
+      id: 'desk-nygma',
+      name: 'Nygma',
+      type: 'desk',
+      position: { x: 7, y: 0, z: -6 },
+      size: { width: 3, depth: 2 },
+    },
+    {
+      id: 'desk-ivy',
+      name: 'Ivy',
+      type: 'desk',
+      position: { x: -8, y: 0, z: -1 },
+      size: { width: 3, depth: 2 },
+    },
+    {
+      id: 'desk-harvey',
+      name: 'Harvey',
+      type: 'desk',
+      position: { x: -3, y: 0, z: -1 },
+      size: { width: 3, depth: 2 },
+    },
+    {
+      id: 'lounge',
+      name: 'Lounge',
+      type: 'lounge',
+      position: { x: 6, y: 0, z: 4 },
+      size: { width: 8, depth: 6 },
+      color: '#1e2d40',
+    },
+    {
+      id: 'meeting',
+      name: 'Meeting Room',
+      type: 'meeting',
+      position: { x: -6, y: 0, z: 6 },
+      size: { width: 7, depth: 5 },
+      color: '#2d1e40',
+    },
   ],
 };
 
@@ -28,10 +78,7 @@ function FloorGrid({ width, depth }: { width: number; depth: number }) {
         <meshStandardMaterial color="#1a1a2e" />
       </mesh>
       {/* Grid lines */}
-      <gridHelper
-        args={[width, width, '#2a2a4e', '#222240']}
-        position={[0, 0, 0]}
-      />
+      <gridHelper args={[width, width, '#2a2a4e', '#222240']} position={[0, 0, 0]} />
     </group>
   );
 }
@@ -49,7 +96,7 @@ function WallOutlines({ width, depth }: { width: number; depth: number }) {
         opacity: 0.3,
         side: THREE.DoubleSide,
       }),
-    []
+    [],
   );
 
   return (
@@ -68,12 +115,30 @@ function WallOutlines({ width, depth }: { width: number; depth: number }) {
       </mesh>
       {/* Wall edge lines */}
       {[
-        [[-halfW, 0, -halfD], [halfW, 0, -halfD]],
-        [[-halfW, 0, -halfD], [-halfW, 0, halfD]],
-        [[halfW, 0, -halfD], [halfW, 0, halfD]],
-        [[-halfW, wallHeight, -halfD], [halfW, wallHeight, -halfD]],
-        [[-halfW, 0, -halfD], [-halfW, wallHeight, -halfD]],
-        [[halfW, 0, -halfD], [halfW, wallHeight, -halfD]],
+        [
+          [-halfW, 0, -halfD],
+          [halfW, 0, -halfD],
+        ],
+        [
+          [-halfW, 0, -halfD],
+          [-halfW, 0, halfD],
+        ],
+        [
+          [halfW, 0, -halfD],
+          [halfW, 0, halfD],
+        ],
+        [
+          [-halfW, wallHeight, -halfD],
+          [halfW, wallHeight, -halfD],
+        ],
+        [
+          [-halfW, 0, -halfD],
+          [-halfW, wallHeight, -halfD],
+        ],
+        [
+          [halfW, 0, -halfD],
+          [halfW, wallHeight, -halfD],
+        ],
       ].map(([start, end], i) => {
         const points = [
           new THREE.Vector3(start[0], start[1], start[2]),
@@ -105,9 +170,9 @@ function Desk({ zone }: { zone: Zone }) {
       {/* Legs */}
       {[
         [-(size.width / 2 - 0.1), deskHeight / 2, -(size.depth / 2 - 0.1)],
-        [(size.width / 2 - 0.1), deskHeight / 2, -(size.depth / 2 - 0.1)],
-        [-(size.width / 2 - 0.1), deskHeight / 2, (size.depth / 2 - 0.1)],
-        [(size.width / 2 - 0.1), deskHeight / 2, (size.depth / 2 - 0.1)],
+        [size.width / 2 - 0.1, deskHeight / 2, -(size.depth / 2 - 0.1)],
+        [-(size.width / 2 - 0.1), deskHeight / 2, size.depth / 2 - 0.1],
+        [size.width / 2 - 0.1, deskHeight / 2, size.depth / 2 - 0.1],
       ].map(([lx, ly, lz], i) => (
         <mesh key={i} position={[lx, ly, lz]}>
           <boxGeometry args={[0.08, deskHeight, 0.08]} />
@@ -120,13 +185,7 @@ function Desk({ zone }: { zone: Zone }) {
         <meshStandardMaterial color="#111118" emissive="#1a1a3e" emissiveIntensity={0.5} />
       </mesh>
       {/* Name label */}
-      <Text
-        position={[0, 2.2, 0]}
-        fontSize={0.3}
-        color="#666688"
-        anchorX="center"
-        anchorY="middle"
-      >
+      <Text position={[0, 2.2, 0]} fontSize={0.3} color="#666688" anchorX="center" anchorY="middle">
         {name}
       </Text>
     </group>

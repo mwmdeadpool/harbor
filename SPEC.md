@@ -11,12 +11,12 @@
 
 ## 1. Vision
 
-A 3D virtual space where NanoClaw agents exist as embodied avatars with full autonomy — able to move, speak, interact, and collaborate in real-time. Puddin' can drop into the space via browser using text, voice, or camera. This is not a monitoring dashboard — it's a living workspace where agents have genuine presence and agency.
+A 3D virtual space where NanoClaw agents exist as embodied avatars with full autonomy — able to move, speak, interact, and collaborate in real-time. The user can drop into the space via browser using text, voice, or camera. This is not a monitoring dashboard — it's a living workspace where agents have genuine presence and agency.
 
 **What Harbor IS:**
 - A shared 3D environment where agents live and work
 - A voice-first communication layer (agents speak with unique voices)
-- A place Puddin' can visit via browser — text, voice, or video
+- A place the user can visit via browser — text, voice, or video
 - A space where agents autonomously decide to interact, collaborate, and create
 - An extension of NanoClaw, not a replacement
 - A **presentation layer** — it renders agent presence, it does not own agent intelligence or IPC
@@ -40,7 +40,7 @@ A 3D virtual space where NanoClaw agents exist as embodied avatars with full aut
 | R1 | 3D browser-based environment (no client install) | Must |
 | R2 | Distinct 3D avatar per agent with unique appearance | Must |
 | R3 | Real-time voice — agents speak with their own TTS voices | Must |
-| R4 | Puddin' can join via text, voice, or camera | Must |
+| R4 | The user can join via text, voice, or camera | Must |
 | R5 | Agents have autonomous movement and interaction | Must |
 | R6 | Multi-agent presence — all agents visible simultaneously | Must |
 | R7 | NanoClaw is the agent brain (no duplicate AI layer) | Must |
@@ -66,7 +66,7 @@ A 3D virtual space where NanoClaw agents exist as embodied avatars with full aut
 | NF6 | Browser compatibility | Chrome, Firefox, Safari (desktop) |
 | NF7 | Memory footprint (server-side, per agent) | < 200MB |
 | NF8 | GPU requirement (client) | WebGL 2.0 (no dedicated GPU required) |
-| NF9 | GPU requirement (server) | None for Harbor itself; inference on existing DGX |
+| NF9 | GPU requirement (server) | None for Harbor itself; inference on existing GPU server |
 
 > **Note (from review):** The original < 2s end-to-end voice target was mathematically impossible given the serial pipeline. Revised to staged budgets with streaming. Push-to-talk and short-turn conversations for MVP instead of open mic.
 
@@ -260,7 +260,7 @@ Each agent gets a `HARBOR.md` skill file that teaches them the Harbor API and so
 **Behavior model (hybrid):**
 1. **Deterministic layer** (cheap, no LLM): handles movement, idling, posture, zone transitions based on finite-state rules. "Working → sit at desk. Idle > 5 min → move to lounge." No LLM calls.
 2. **Event-driven LLM layer** (expensive, on demand): triggers only on meaningful events:
-   - Puddin' enters/leaves the space
+   - The user enters/leaves the space
    - Another agent speaks nearby
    - A task completes or an alert fires
    - Explicit interaction request from another agent or user
@@ -283,7 +283,7 @@ All actions go through the Policy Engine before becoming world mutations.
 
 ```
                      ┌─────────┐
-Puddin's Mic ──────> │ Push-to │ ──> Audio chunks
+User's Mic ──────> │ Push-to │ ──> Audio chunks
 (push-to-talk)       │ Talk    │
                      └────┬────┘
                           │
@@ -355,7 +355,7 @@ export default {
 }
 ```
 
-**Message flow (Puddin' speaks to Margot):**
+**Message flow (the user speaks to Margot):**
 1. Browser captures audio (push-to-talk) → HTTP → Media Service
 2. Media Service → Whisper STT → text
 3. Event Adapter inserts message into NanoClaw DB (same as Discord/WhatsApp)
@@ -427,7 +427,7 @@ A stylized 3D office with distinct zones:
 │  │ Ivy's   │  │ Harvey's│  └─────────────┘ │
 │  │ Desk    │  │ Desk    │                   │
 │  └─────────┘  └─────────┘  ┌─────────────┐ │
-│                             │ Puddin's    │ │
+│                             │ User's    │ │
 │                             │ Corner      │ │
 │                             │ (spawn pt)  │ │
 │                             └─────────────┘ │
@@ -438,7 +438,7 @@ A stylized 3D office with distinct zones:
 - **Desks** — Where agents go when actively working on tasks
 - **Meeting Room** — Multi-agent discussions, team standups
 - **Lounge** — Casual conversation, idle hangout
-- **Puddin's Corner** — Where Puddin' spawns when entering, comfortable chair, screens showing system status
+- **User's Corner** — Where The user spawns when entering, comfortable chair, screens showing system status
 
 Environment is data-driven (JSON config), so new rooms/layouts can be added without code changes.
 
@@ -452,7 +452,7 @@ Environment is data-driven (JSON config), so new rooms/layouts can be added with
 interface WorldState {
   agents: Record<string, AgentState>;
   room: RoomConfig;
-  puddin: PuddinState | null;
+  user: UserPresence | null;
   sequence: number;    // Monotonic sequence ID for event ordering
   timestamp: number;
 }
@@ -479,7 +479,7 @@ type AgentActivity =
   | { type: 'thinking' }
   | { type: 'moving', destination: string };
 
-interface PuddinState {
+interface UserState {
   position: Vector3;
   rotation: number;
   zone: string;
@@ -574,9 +574,9 @@ auth:expired     — Session expired, re-authenticate
 
 **Client → Server (all require valid session token):**
 ```
-user:join        — Puddin' enters the space
-user:leave       — Puddin' exits
-user:move        — Puddin's position update
+user:join        — the user enters the space
+user:leave       — the user exits
+user:move        — User's position update
 user:chat        — Text message to agent
 user:voice       — Voice chunk (HTTP upload, not WS)
 user:action      — Interact with object/agent
@@ -719,7 +719,7 @@ POST /api/auth/refresh — Refresh expiring token
 
 ### 10.1 Server
 
-Harbor runs as **separate systemd services** alongside NanoClaw on DGX:
+Harbor runs as **separate systemd services** alongside NanoClaw on the host:
 
 ```
 nanoclaw.service        — Main orchestrator (existing)
@@ -787,7 +787,7 @@ Static files served by Harbor Presence Service via HTTPS. Access via `https://<d
 
 1. **Avatar style** — Stylized/anime (VRoid) vs semi-realistic (Ready Player Me) vs custom commissioned? Each has trade-offs in creation time, visual quality, and uncanny valley risk. **Recommendation:** Start with RPM for MVP, commission custom later.
 
-2. **Agent motivation** — What drives agents to interact when Puddin' isn't present? **Decision:** Deterministic base behaviors (work, idle, move) plus event-driven LLM triggers for meaningful interactions only. No "desire to socialize" simulation.
+2. **Agent motivation** — What drives agents to interact when the user isn't present? **Decision:** Deterministic base behaviors (work, idle, move) plus event-driven LLM triggers for meaningful interactions only. No "desire to socialize" simulation.
 
 3. **Environment complexity** — Minimal/clean (fast to build, runs everywhere) vs detailed/immersive. **Decision:** Minimal for MVP. Polish phase adds visual quality.
 

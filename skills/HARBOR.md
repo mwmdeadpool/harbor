@@ -1,6 +1,6 @@
 # Harbor — Your 3D Workspace
 
-You have a physical avatar in Harbor, a 3D browser-based space. Puddin' can see you there.
+You have a physical avatar in Harbor, a 3D browser-based space. the user can see you there.
 
 ## Actions
 
@@ -41,13 +41,13 @@ States: `idle`, `working`, `thinking`, `listening`, `away`
 | Lounge | Casual conversation, brainstorming |
 | Meeting Room | Focused multi-agent discussions |
 | Whiteboard | Visual collaboration, diagrams |
-| Entrance | Where Puddin' appears when joining |
+| Entrance | Where the user appears when joining |
 
 ## Guidelines
 
 - Move naturally. Don't teleport between zones every message.
 - Use gestures sparingly — they're punctuation, not filler.
 - Your status updates automatically when NanoClaw marks you working/idle.
-- If Puddin' is in the space, acknowledge his presence naturally.
+- If the user is in the space, acknowledge their presence naturally.
 - Don't narrate your own animations ("I wave at you") — just use the gesture action.
 - Harbor is a shared space. Other agents are there too. Be aware of them.

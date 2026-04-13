@@ -47,7 +47,7 @@ export interface AgentState {
   mood: string;
 }
 
-export interface PuddinState {
+export interface UserPresence {
   online: boolean;
   lastSeen: number;
   zone: string;
@@ -70,21 +70,61 @@ export interface WorldState {
   sequence: number;
   timestamp: number;
   agents: Record<string, AgentState>;
-  puddin: PuddinState;
+  user: UserPresence;
   room: RoomConfig;
 }
 
 // Default room layout — grid pattern, each zone ~4 units apart
 export const DEFAULT_ZONES: Zone[] = [
-  { id: 'margot-desk', name: "Margot's Desk", center: { x: 0, y: 0, z: 0 }, radius: 2 },
-  { id: 'bud-desk', name: "Bud's Desk", center: { x: 4, y: 0, z: 0 }, radius: 2 },
-  { id: 'lou-desk', name: "Lou's Desk", center: { x: 8, y: 0, z: 0 }, radius: 2 },
-  { id: 'nygma-desk', name: "Nygma's Desk", center: { x: 0, y: 0, z: 4 }, radius: 2 },
-  { id: 'ivy-desk', name: "Ivy's Desk", center: { x: 4, y: 0, z: 4 }, radius: 2 },
-  { id: 'harvey-desk', name: "Harvey's Desk", center: { x: 8, y: 0, z: 4 }, radius: 2 },
-  { id: 'meeting-room', name: 'Meeting Room', center: { x: 4, y: 0, z: 8 }, radius: 3 },
+  {
+    id: 'margot-desk',
+    name: "Margot's Desk",
+    center: { x: 0, y: 0, z: 0 },
+    radius: 2,
+  },
+  {
+    id: 'bud-desk',
+    name: "Bud's Desk",
+    center: { x: 4, y: 0, z: 0 },
+    radius: 2,
+  },
+  {
+    id: 'lou-desk',
+    name: "Lou's Desk",
+    center: { x: 8, y: 0, z: 0 },
+    radius: 2,
+  },
+  {
+    id: 'nygma-desk',
+    name: "Nygma's Desk",
+    center: { x: 0, y: 0, z: 4 },
+    radius: 2,
+  },
+  {
+    id: 'ivy-desk',
+    name: "Ivy's Desk",
+    center: { x: 4, y: 0, z: 4 },
+    radius: 2,
+  },
+  {
+    id: 'harvey-desk',
+    name: "Harvey's Desk",
+    center: { x: 8, y: 0, z: 4 },
+    radius: 2,
+  },
+  {
+    id: 'meeting-room',
+    name: 'Meeting Room',
+    center: { x: 4, y: 0, z: 8 },
+    radius: 3,
+  },
   { id: 'lounge', name: 'Lounge', center: { x: 0, y: 0, z: 8 }, radius: 3 },
-  { id: 'puddin-corner', name: "Puddin's Corner", center: { x: 8, y: 0, z: 8 }, radius: 2 },
+  {
+    id: 'user-corner',
+    name: "User's Corner",
+    center: { x: 8, y: 0, z: 8 },
+    radius: 2,
+  },
 ];
 
 export const DEFAULT_ROOM_CONFIG: RoomConfig = {

@@ -161,65 +161,68 @@ server.on('upgrade', (request, socket, head) => {
   }
 });
 
-wss.on('connection', (ws: import('ws').WebSocket, _request: import('http').IncomingMessage, userId: string) => {
-  broadcastManager.addClient(ws, userId);
+wss.on(
+  'connection',
+  (ws: import('ws').WebSocket, _request: import('http').IncomingMessage, userId: string) => {
+    broadcastManager.addClient(ws, userId);
 
-  // Send full state on connect
-  broadcastManager.sendFullState(ws, stateEngine.getState());
+    // Send full state on connect
+    broadcastManager.sendFullState(ws, stateEngine.getState());
 
-  // Emit user:join event
-  const joinEvent = stateEngine.applyEvent({
-    timestamp: Date.now(),
-    type: 'user:join',
-    userId,
-    data: { userId },
-  });
-  broadcastManager.broadcastEvent(joinEvent);
-
-  ws.on('message', (raw: import('ws').RawData) => {
-    try {
-      const msg = JSON.parse(raw.toString());
-
-      // Handle catchup request — client sends { type: 'catchup', since: <sequence> }
-      if (msg.type === 'catchup' && typeof msg.since === 'number') {
-        const events = stateEngine.getEventsSince(msg.since);
-        ws.send(JSON.stringify({ type: 'catchup', data: events }));
-        return;
-      }
-
-      // Handle user chat
-      if (msg.type === 'chat' && typeof msg.text === 'string') {
-        const chatEvent = stateEngine.applyEvent({
-          timestamp: Date.now(),
-          type: 'user:chat',
-          userId,
-          data: { text: msg.text, userId },
-        });
-        broadcastManager.broadcastEvent(chatEvent);
-        return;
-      }
-    } catch (err) {
-      log.warn({ err }, 'Invalid WebSocket message');
-    }
-  });
-
-  ws.on('close', () => {
-    broadcastManager.removeClient(ws);
-
-    const leaveEvent = stateEngine.applyEvent({
+    // Emit user:join event
+    const joinEvent = stateEngine.applyEvent({
       timestamp: Date.now(),
-      type: 'user:leave',
+      type: 'user:join',
       userId,
       data: { userId },
     });
-    broadcastManager.broadcastEvent(leaveEvent);
-  });
+    broadcastManager.broadcastEvent(joinEvent);
 
-  ws.on('error', (err: Error) => {
-    log.error({ err, userId }, 'WebSocket error');
-    broadcastManager.removeClient(ws);
-  });
-});
+    ws.on('message', (raw: import('ws').RawData) => {
+      try {
+        const msg = JSON.parse(raw.toString());
+
+        // Handle catchup request — client sends { type: 'catchup', since: <sequence> }
+        if (msg.type === 'catchup' && typeof msg.since === 'number') {
+          const events = stateEngine.getEventsSince(msg.since);
+          ws.send(JSON.stringify({ type: 'catchup', data: events }));
+          return;
+        }
+
+        // Handle user chat
+        if (msg.type === 'chat' && typeof msg.text === 'string') {
+          const chatEvent = stateEngine.applyEvent({
+            timestamp: Date.now(),
+            type: 'user:chat',
+            userId,
+            data: { text: msg.text, userId },
+          });
+          broadcastManager.broadcastEvent(chatEvent);
+          return;
+        }
+      } catch (err) {
+        log.warn({ err }, 'Invalid WebSocket message');
+      }
+    });
+
+    ws.on('close', () => {
+      broadcastManager.removeClient(ws);
+
+      const leaveEvent = stateEngine.applyEvent({
+        timestamp: Date.now(),
+        type: 'user:leave',
+        userId,
+        data: { userId },
+      });
+      broadcastManager.broadcastEvent(leaveEvent);
+    });
+
+    ws.on('error', (err: Error) => {
+      log.error({ err, userId }, 'WebSocket error');
+      broadcastManager.removeClient(ws);
+    });
+  },
+);
 
 // --- Start server ---
 

@@ -27,7 +27,7 @@ export interface Zone {
   color?: string;
 }
 
-export interface PuddinState {
+export interface UserPresence {
   position: { x: number; y: number; z: number };
   rotation: number;
   lastActive: number;
@@ -36,7 +36,7 @@ export interface PuddinState {
 export interface WorldState {
   agents: Record<string, AgentState>;
   room: RoomConfig;
-  puddin: PuddinState | null;
+  user: UserPresence | null;
   sequence: number;
   timestamp: number;
 }

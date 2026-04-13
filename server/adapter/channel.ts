@@ -135,8 +135,7 @@ export class HarborChannel implements Channel {
 // which means Harbor won't activate unless HARBOR_SERVER_URL + HARBOR_ADAPTER_TOKEN are set.
 
 registerChannel('harbor', (opts: ChannelOpts) => {
-  const serverUrl =
-    process.env.HARBOR_SERVER_URL || `http://localhost:${DEFAULT_HARBOR_PORT}`;
+  const serverUrl = process.env.HARBOR_SERVER_URL || `http://localhost:${DEFAULT_HARBOR_PORT}`;
   const token = process.env.HARBOR_ADAPTER_TOKEN || '';
 
   if (!token) {

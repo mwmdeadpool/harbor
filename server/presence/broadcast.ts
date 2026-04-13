@@ -59,10 +59,7 @@ export class BroadcastManager {
       }
     }
 
-    log.debug(
-      { type: event.type, sequence: event.sequence, sent, failed },
-      'Event broadcast'
-    );
+    log.debug({ type: event.type, sequence: event.sequence, sent, failed }, 'Event broadcast');
   }
 
   /**
