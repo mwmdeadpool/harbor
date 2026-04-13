@@ -3,6 +3,7 @@ import { OrbitControls } from '@react-three/drei';
 import { useStore } from '../store';
 import { Room, DEFAULT_ROOM } from './Room';
 import { Agent3D } from './Agent3D';
+import { ConversationLayer } from './ConversationBubble';
 import type { AgentState } from '../types';
 
 // Default agent positions for demo / when server hasn't sent state
@@ -89,6 +90,7 @@ const DEFAULT_AGENTS: Record<string, AgentState> = {
 
 export function Scene() {
   const worldState = useStore((s) => s.worldState);
+  const agentConversations = useStore((s) => s.agentConversations);
   const agents = worldState?.agents ?? DEFAULT_AGENTS;
   const room = worldState?.room ?? DEFAULT_ROOM;
 
@@ -132,6 +134,9 @@ export function Scene() {
         {Object.values(agents).map((agent) => (
           <Agent3D key={agent.id} agent={agent} />
         ))}
+
+        {/* Inter-agent conversation bubbles */}
+        <ConversationLayer conversations={agentConversations} agents={agents} />
 
         {/* Camera controls */}
         <OrbitControls

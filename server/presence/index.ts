@@ -11,7 +11,10 @@ import type { AuthRequest } from './auth.js';
 import { StateEngine } from './state.js';
 import { PolicyEngine } from './policy.js';
 import { BroadcastManager } from './broadcast.js';
+import { BehaviorEngine } from './behavior.js';
+import { generateAgentToken, generateAllAgentTokens, listAgentProfiles } from './capabilities.js';
 import type { EventType } from './types.js';
+import { DEFAULT_AGENTS } from './types.js';
 
 const log = pino({ name: 'harbor' });
 const PORT = parseInt(process.env.HARBOR_PORT || '3333', 10);
@@ -25,6 +28,29 @@ await initAuth(db);
 const stateEngine = new StateEngine();
 const policyEngine = new PolicyEngine();
 const broadcastManager = new BroadcastManager();
+const behaviorEngine = new BehaviorEngine(DEFAULT_AGENTS);
+
+// Wire behavior engine reactions → state engine → broadcast
+behaviorEngine.setReactionCallback((reactions) => {
+  for (const reaction of reactions) {
+    const eventType: EventType =
+      reaction.type === 'move'
+        ? 'agent:move'
+        : reaction.type === 'gesture'
+          ? 'agent:react'
+          : 'agent:status';
+
+    const event = stateEngine.applyEvent({
+      timestamp: Date.now(),
+      type: eventType,
+      agentId: reaction.agentId,
+      data: reaction.data,
+    });
+    broadcastManager.broadcastEvent(event);
+  }
+});
+
+behaviorEngine.start();
 
 // --- Express app ---
 
@@ -116,6 +142,9 @@ function handleAgentAction(eventType: EventType, capability: string) {
         data,
       });
 
+      // Feed to behavior engine for reactive behaviors
+      behaviorEngine.processEvent(event, stateEngine.getState().agents);
+
       // Broadcast to connected clients
       broadcastManager.broadcastEvent(event);
 
@@ -141,6 +170,75 @@ app.get('/harbor/state', requireCapability('read'), (req: AuthRequest, res) => {
     world: stateEngine.getState(),
   });
 });
+
+// --- Admin endpoints (requires user auth) ---
+
+app.get('/api/capabilities', requireAuth, (_req, res) => {
+  res.json(listAgentProfiles());
+});
+
+app.post('/api/capabilities/token', requireAuth, (req, res) => {
+  const { agentId } = req.body;
+  if (!agentId) {
+    res.status(400).json({ error: 'agentId required' });
+    return;
+  }
+  const token = generateAgentToken(agentId);
+  res.json({ agentId, token });
+});
+
+app.post('/api/capabilities/tokens/all', requireAuth, (_req, res) => {
+  const tokens = generateAllAgentTokens();
+  res.json(tokens);
+});
+
+app.get('/api/behavior', requireAuth, (_req, res) => {
+  const roster = stateEngine.getAgentRoster();
+  const behaviors: Record<string, unknown> = {};
+  for (const agent of roster) {
+    behaviors[agent.id] = {
+      ...behaviorEngine.getBehavior(agent.id),
+      talkBudget: policyEngine.getTalkBudgetStatus(agent.id),
+    };
+  }
+  res.json(behaviors);
+});
+
+// --- Inter-agent conversation endpoint ---
+
+app.post(
+  '/harbor/conversation',
+  requireCapability('speak'),
+  (req: AuthRequest, res: express.Response) => {
+    const fromAgent = req.agentId!;
+    const { toAgent, text } = req.body;
+
+    if (!toAgent || !text) {
+      res.status(400).json({ error: 'toAgent and text required' });
+      return;
+    }
+
+    // Policy check for sender
+    const policy = policyEngine.evaluate(fromAgent, 'speak');
+    if (!policy.approved) {
+      res.status(429).json({ error: policy.reason });
+      return;
+    }
+
+    const event = stateEngine.applyEvent({
+      timestamp: Date.now(),
+      type: 'agent:conversation',
+      agentId: fromAgent,
+      data: { fromAgent, toAgent, text },
+    });
+
+    behaviorEngine.processEvent(event, stateEngine.getState().agents);
+    broadcastManager.broadcastEvent(event);
+
+    policyEngine.recordSuccess(fromAgent);
+    res.json({ ok: true, sequence: event.sequence });
+  },
+);
 
 // SPA fallback — serve index.html for unmatched routes
 app.get('*', (_req, res) => {
@@ -195,6 +293,7 @@ wss.on(
       userId,
       data: { userId },
     });
+    behaviorEngine.processEvent(joinEvent, stateEngine.getState().agents);
     broadcastManager.broadcastEvent(joinEvent);
 
     ws.on('message', (raw: import('ws').RawData) => {
@@ -216,6 +315,7 @@ wss.on(
             userId,
             data: { text: msg.text, userId },
           });
+          behaviorEngine.processEvent(chatEvent, stateEngine.getState().agents);
           broadcastManager.broadcastEvent(chatEvent);
           return;
         }
@@ -233,6 +333,7 @@ wss.on(
         userId,
         data: { userId },
       });
+      behaviorEngine.processEvent(leaveEvent, stateEngine.getState().agents);
       broadcastManager.broadcastEvent(leaveEvent);
     });
 
@@ -255,6 +356,7 @@ server.listen(PORT, () => {
 
 const shutdown = () => {
   log.info('Shutting down...');
+  behaviorEngine.stop();
   server.close(() => {
     closeDb();
     process.exit(0);

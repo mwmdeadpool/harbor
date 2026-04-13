@@ -14,65 +14,110 @@ export function Agent3D({ agent }: Agent3DProps) {
   const groupRef = useRef<THREE.Group>(null);
   const bodyRef = useRef<THREE.Group>(null);
   const glowRef = useRef<THREE.Mesh>(null);
-  const bobOffset = useRef(Math.random() * Math.PI * 2); // random phase so agents don't bob in sync
+  const bobOffset = useRef(Math.random() * Math.PI * 2);
 
   const color = useMemo(() => getAgentColor(agent.name), [agent.name]);
-  // Idle bob + speaking glow animation
+
+  // Activity-based animation parameters
+  const animParams = useMemo(
+    () => getActivityAnimation(agent.activity, agent.animation),
+    [agent.activity, agent.animation],
+  );
+
   useFrame((_, delta) => {
     if (!groupRef.current) return;
 
-    // Gentle bob
-    bobOffset.current += delta * 1.5;
-    const bobY = Math.sin(bobOffset.current) * 0.05;
-    groupRef.current.position.y = agent.position.y + bobY;
-    groupRef.current.position.x = agent.position.x;
-    groupRef.current.position.z = agent.position.z;
+    bobOffset.current += delta * animParams.bobSpeed;
 
-    // Speaking body sway
+    // Position with smooth lerp for movement
+    const targetX = agent.position.x;
+    const targetZ = agent.position.z;
+    const currentX = groupRef.current.position.x;
+    const currentZ = groupRef.current.position.z;
+    groupRef.current.position.x = THREE.MathUtils.lerp(currentX, targetX, delta * 3);
+    groupRef.current.position.z = THREE.MathUtils.lerp(currentZ, targetZ, delta * 3);
+    groupRef.current.position.y =
+      agent.position.y + Math.sin(bobOffset.current) * animParams.bobHeight;
+
+    // Smooth rotation lerp
+    if (agent.rotation !== undefined) {
+      const targetRot = agent.rotation;
+      const currentRot = groupRef.current.rotation.y;
+      groupRef.current.rotation.y = THREE.MathUtils.lerp(currentRot, targetRot, delta * 4);
+    }
+
+    // Body animation based on activity
     if (bodyRef.current) {
-      if (agent.speaking) {
-        const sway = Math.sin(bobOffset.current * 2.5) * 0.03;
+      if (agent.speaking || agent.activity === 'talking') {
+        // Speaking sway
+        const sway = Math.sin(bobOffset.current * 2.5) * 0.04;
         bodyRef.current.rotation.z = sway;
+      } else if (agent.activity === 'working' || agent.activity === 'coding') {
+        // Subtle typing motion
+        const typing = Math.sin(bobOffset.current * 6) * 0.008;
+        bodyRef.current.rotation.z = typing;
+      } else if (agent.activity === 'thinking') {
+        // Slow tilt
+        const think = Math.sin(bobOffset.current * 0.5) * 0.03;
+        bodyRef.current.rotation.z = think;
+        bodyRef.current.rotation.x = Math.sin(bobOffset.current * 0.3) * 0.02;
+      } else if (agent.animation === 'listening') {
+        // Slight lean forward
+        bodyRef.current.rotation.x = -0.05;
+        bodyRef.current.rotation.z *= 0.95;
+      } else if (agent.animation === 'wave') {
+        // Wave animation — body tilt
+        const wave = Math.sin(bobOffset.current * 4) * 0.06;
+        bodyRef.current.rotation.z = wave;
       } else {
-        bodyRef.current.rotation.z *= 0.9; // ease back to neutral
+        // Ease back to neutral
+        bodyRef.current.rotation.z *= 0.9;
+        bodyRef.current.rotation.x *= 0.9;
       }
     }
 
-    // Speaking glow pulse
+    // Glow pulse for speaking/presenting
     if (glowRef.current) {
-      if (agent.speaking) {
+      if (agent.speaking || agent.activity === 'presenting') {
         const pulse = 0.8 + Math.sin(bobOffset.current * 4) * 0.4;
         glowRef.current.scale.setScalar(pulse);
         (glowRef.current.material as THREE.MeshBasicMaterial).opacity =
           0.15 + Math.sin(bobOffset.current * 4) * 0.1;
+      } else if (agent.activity === 'thinking') {
+        // Gentle thinking glow
+        const pulse = 0.5 + Math.sin(bobOffset.current * 1.5) * 0.2;
+        glowRef.current.scale.setScalar(pulse);
+        (glowRef.current.material as THREE.MeshBasicMaterial).opacity = 0.08;
       } else {
         glowRef.current.scale.setScalar(0);
       }
     }
   });
 
+  const activityIcon = getActivityIcon(agent.activity, agent.animation);
+
   return (
     <group ref={groupRef} position={[agent.position.x, agent.position.y, agent.position.z]}>
       <group ref={bodyRef}>
-        {/* Body — capsule shape using cylinder + two spheres */}
+        {/* Body — capsule shape */}
         <mesh position={[0, 0.7, 0]} castShadow>
           <cylinderGeometry args={[0.25, 0.3, 0.8, 16]} />
           <meshStandardMaterial color={color} roughness={0.4} metalness={0.1} />
         </mesh>
 
-        {/* Head — sphere */}
+        {/* Head */}
         <mesh position={[0, 1.35, 0]} castShadow>
           <sphereGeometry args={[0.22, 16, 16]} />
           <meshStandardMaterial color={color} roughness={0.3} metalness={0.15} />
         </mesh>
 
-        {/* Neck connector */}
+        {/* Neck */}
         <mesh position={[0, 1.1, 0]}>
           <cylinderGeometry args={[0.1, 0.15, 0.1, 8]} />
           <meshStandardMaterial color={color} roughness={0.5} />
         </mesh>
 
-        {/* Base/feet */}
+        {/* Base */}
         <mesh position={[0, 0.15, 0]}>
           <cylinderGeometry args={[0.3, 0.35, 0.3, 16]} />
           <meshStandardMaterial
@@ -82,13 +127,13 @@ export function Agent3D({ agent }: Agent3DProps) {
         </mesh>
       </group>
 
-      {/* Speaking glow ring */}
+      {/* Speaking/thinking glow ring */}
       <mesh ref={glowRef} position={[0, 0.7, 0]} scale={0}>
         <sphereGeometry args={[0.6, 16, 16]} />
         <meshBasicMaterial color={color} transparent opacity={0.15} side={THREE.BackSide} />
       </mesh>
 
-      {/* Eye dots — give them a face */}
+      {/* Eyes */}
       <mesh position={[-0.08, 1.38, 0.19]}>
         <sphereGeometry args={[0.035, 8, 8]} />
         <meshBasicMaterial color="#ffffff" />
@@ -107,7 +152,7 @@ export function Agent3D({ agent }: Agent3DProps) {
         <meshBasicMaterial color="#111111" />
       </mesh>
 
-      {/* Name label — floating above */}
+      {/* Name label */}
       <Text
         position={[0, 1.85, 0]}
         fontSize={0.22}
@@ -120,37 +165,31 @@ export function Agent3D({ agent }: Agent3DProps) {
         {agent.name}
       </Text>
 
-      {/* Activity indicator */}
-      {agent.activity && (
-        <Html
-          position={[0, 2.15, 0]}
-          center
+      {/* Activity indicator with icon */}
+      <Html
+        position={[0, 2.15, 0]}
+        center
+        style={{ pointerEvents: 'none', userSelect: 'none', whiteSpace: 'nowrap' }}
+      >
+        <div
           style={{
-            pointerEvents: 'none',
-            userSelect: 'none',
-            whiteSpace: 'nowrap',
+            background: 'rgba(20, 20, 40, 0.85)',
+            border: `1px solid ${color}44`,
+            borderRadius: '4px',
+            padding: '2px 8px',
+            fontSize: '11px',
+            color: '#aaaacc',
+            fontFamily: 'monospace',
           }}
         >
-          <div
-            style={{
-              background: 'rgba(20, 20, 40, 0.85)',
-              border: `1px solid ${color}44`,
-              borderRadius: '4px',
-              padding: '2px 8px',
-              fontSize: '11px',
-              color: '#aaaacc',
-              fontFamily: 'monospace',
-            }}
-          >
-            {agent.activity}
-          </div>
-        </Html>
-      )}
+          {activityIcon} {agent.animation !== 'idle' ? agent.animation : agent.activity}
+        </div>
+      </Html>
 
-      {/* Speaking indicator — animated sound wave bars */}
+      {/* Speaking indicator */}
       <SpeakingIndicator agentName={agent.name} visible={agent.speaking} />
 
-      {/* Mood ring at the base */}
+      {/* Mood ring */}
       {agent.mood && agent.mood !== 'neutral' && (
         <mesh position={[0, 0.02, 0]} rotation-x={-Math.PI / 2}>
           <ringGeometry args={[0.35, 0.45, 24]} />
@@ -159,6 +198,54 @@ export function Agent3D({ agent }: Agent3DProps) {
       )}
     </group>
   );
+}
+
+interface ActivityAnimParams {
+  bobSpeed: number;
+  bobHeight: number;
+}
+
+function getActivityAnimation(activity: string, animation: string): ActivityAnimParams {
+  if (animation === 'wave') return { bobSpeed: 3, bobHeight: 0.08 };
+  if (animation === 'listening') return { bobSpeed: 1.0, bobHeight: 0.02 };
+
+  switch (activity) {
+    case 'talking':
+      return { bobSpeed: 2.0, bobHeight: 0.06 };
+    case 'working':
+    case 'coding':
+      return { bobSpeed: 1.2, bobHeight: 0.02 };
+    case 'thinking':
+      return { bobSpeed: 0.8, bobHeight: 0.04 };
+    case 'presenting':
+      return { bobSpeed: 1.8, bobHeight: 0.07 };
+    case 'away':
+      return { bobSpeed: 0.5, bobHeight: 0.01 };
+    default:
+      return { bobSpeed: 1.5, bobHeight: 0.05 };
+  }
+}
+
+function getActivityIcon(activity: string, animation: string): string {
+  if (animation === 'wave') return '\u{1F44B}';
+  if (animation === 'listening') return '\u{1F442}';
+
+  switch (activity) {
+    case 'talking':
+      return '\u{1F4AC}';
+    case 'working':
+      return '\u{2328}';
+    case 'coding':
+      return '\u{1F4BB}';
+    case 'thinking':
+      return '\u{1F4AD}';
+    case 'presenting':
+      return '\u{1F4CA}';
+    case 'away':
+      return '\u{1F4A4}';
+    default:
+      return '\u{26AB}';
+  }
 }
 
 function getMoodColor(mood: string): string {
@@ -171,10 +258,22 @@ function getMoodColor(mood: string): string {
       return '#ffcc00';
     case 'thinking':
       return '#aa88ff';
+    case 'attentive':
+      return '#44ccff';
     case 'stressed':
       return '#ff4444';
     case 'chill':
       return '#44dddd';
+    case 'playful':
+      return '#ff66aa';
+    case 'steady':
+      return '#4466cc';
+    case 'curious':
+      return '#66cc44';
+    case 'analytical':
+      return '#8888aa';
+    case 'serene':
+      return '#ff9944';
     default:
       return '#888888';
   }

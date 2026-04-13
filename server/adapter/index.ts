@@ -280,6 +280,26 @@ export function updateAgentPresence(agentId: string, activity: AgentActivity): b
 }
 
 /**
+ * Render an inter-agent conversation in Harbor.
+ * Called when NanoClaw IPC routes a message between agents.
+ */
+export function sendAgentConversation(
+  fromAgent: string,
+  toAgent: string,
+  message: string,
+): boolean {
+  return send({
+    type: 'agent:conversation',
+    payload: {
+      fromAgent,
+      toAgent,
+      text: message,
+      timestamp: new Date().toISOString(),
+    },
+  });
+}
+
+/**
  * Check if the adapter is connected and authenticated.
  */
 export function isAdapterConnected(): boolean {

@@ -51,6 +51,14 @@ export interface ChatMessage {
 
 export type VoiceState = 'idle' | 'recording' | 'processing' | 'playing';
 
+export interface AgentConversation {
+  id: string;
+  fromAgent: string;
+  toAgent: string;
+  text: string;
+  timestamp: number;
+}
+
 export interface WSMessage {
   type: string;
   data: unknown;
