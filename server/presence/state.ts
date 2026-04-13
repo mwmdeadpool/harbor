@@ -200,6 +200,61 @@ export class StateEngine {
         break;
       }
 
+      case 'agent:conversation': {
+        // Inter-agent conversation rendering — two agents talking
+        // The event carries: fromAgent, toAgent, text
+        // We mark both agents as talking and update their rotations to face each other
+        const fromId = data.fromAgent as string;
+        const toId = data.toAgent as string;
+        if (fromId && this.state.agents[fromId]) {
+          this.state.agents[fromId].speaking = true;
+          this.state.agents[fromId].activity = 'talking';
+          this.state.agents[fromId].lastActive = event.timestamp;
+
+          if (toId && this.state.agents[toId]) {
+            // Face toward the speaker
+            const from = this.state.agents[fromId].position;
+            const to = this.state.agents[toId].position;
+            this.state.agents[toId].activity = 'idle';
+            this.state.agents[toId].animation = 'listening';
+            this.state.agents[toId].lastActive = event.timestamp;
+            // Calculate facing angle
+            const angle = Math.atan2(from.x - to.x, from.z - to.z);
+            this.state.agents[toId].rotation = angle;
+          }
+
+          setTimeout(() => {
+            if (this.state.agents[fromId]) {
+              this.state.agents[fromId].speaking = false;
+              if (this.state.agents[fromId].activity === 'talking') {
+                this.state.agents[fromId].activity = 'idle';
+                this.state.agents[fromId].animation = 'idle';
+              }
+            }
+            if (toId && this.state.agents[toId]) {
+              this.state.agents[toId].animation = 'idle';
+            }
+          }, 5000);
+        }
+        break;
+      }
+
+      case 'agent:react': {
+        // Behavioral reaction — gesture, wave, nod, etc.
+        if (!agentId || !this.state.agents[agentId]) break;
+        const agent = this.state.agents[agentId];
+        if (data.animation) agent.animation = data.animation as string;
+        if (data.mood) agent.mood = data.mood as string;
+        agent.lastActive = event.timestamp;
+        const reactDuration = (data.duration as number) || 3000;
+        setTimeout(() => {
+          if (this.state.agents[agentId!]) {
+            this.state.agents[agentId!].animation = 'idle';
+          }
+        }, reactDuration);
+        break;
+      }
+
       case 'room:update': {
         if (data.name) this.state.room.name = data.name as string;
         break;

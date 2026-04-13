@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { WorldState, ChatMessage, AgentState } from './types';
+import type { WorldState, ChatMessage, AgentState, AgentConversation } from './types';
 
 interface HarborStore {
   // Auth
@@ -15,6 +15,10 @@ interface HarborStore {
   // Chat
   chatMessages: ChatMessage[];
   addChatMessage: (msg: ChatMessage) => void;
+
+  // Conversations (inter-agent)
+  agentConversations: AgentConversation[];
+  addAgentConversation: (convo: AgentConversation) => void;
 
   // Voice / Audio
   volume: number;
@@ -86,6 +90,13 @@ export const useStore = create<HarborStore>((set) => ({
   addChatMessage: (msg: ChatMessage) =>
     set((s) => ({
       chatMessages: [...s.chatMessages.slice(-49), msg],
+    })),
+
+  // Conversations
+  agentConversations: [],
+  addAgentConversation: (convo: AgentConversation) =>
+    set((s) => ({
+      agentConversations: [...s.agentConversations.slice(-19), convo],
     })),
 
   // Voice / Audio

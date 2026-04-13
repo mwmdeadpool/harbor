@@ -3,6 +3,8 @@ export type EventType =
   | 'agent:speak'
   | 'agent:gesture'
   | 'agent:status'
+  | 'agent:conversation'
+  | 'agent:react'
   | 'user:join'
   | 'user:leave'
   | 'user:chat'
