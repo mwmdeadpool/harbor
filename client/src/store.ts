@@ -16,6 +16,12 @@ interface HarborStore {
   chatMessages: ChatMessage[];
   addChatMessage: (msg: ChatMessage) => void;
 
+  // Voice / Audio
+  volume: number;
+  setVolume: (volume: number) => void;
+  voiceEnabled: boolean;
+  toggleVoice: () => void;
+
   // Connection
   connected: boolean;
   setConnected: (connected: boolean) => void;
@@ -81,6 +87,12 @@ export const useStore = create<HarborStore>((set) => ({
     set((s) => ({
       chatMessages: [...s.chatMessages.slice(-49), msg],
     })),
+
+  // Voice / Audio
+  volume: 0.8,
+  setVolume: (volume: number) => set({ volume: Math.max(0, Math.min(1, volume)) }),
+  voiceEnabled: true,
+  toggleVoice: () => set((s) => ({ voiceEnabled: !s.voiceEnabled })),
 
   // Connection
   connected: false,

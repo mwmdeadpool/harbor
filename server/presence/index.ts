@@ -36,6 +36,25 @@ const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 const clientDist = path.resolve(__dirname, '../../../client/dist');
 app.use(express.static(clientDist));
 
+// Proxy /media requests to Media Service (port 3334) in production
+const MEDIA_SERVICE_URL = process.env.HARBOR_MEDIA_URL || 'http://localhost:3334';
+app.use('/media', (req, res) => {
+  const proxyUrl = `${MEDIA_SERVICE_URL}${req.originalUrl}`;
+  const proxyReq = http.request(
+    proxyUrl,
+    { method: req.method, headers: { ...req.headers, host: new URL(MEDIA_SERVICE_URL).host } },
+    (proxyRes) => {
+      res.writeHead(proxyRes.statusCode || 500, proxyRes.headers);
+      proxyRes.pipe(res);
+    },
+  );
+  proxyReq.on('error', (err) => {
+    log.warn({ err, url: proxyUrl }, 'Media service proxy error');
+    if (!res.headersSent) res.status(502).json({ error: 'Media service unavailable' });
+  });
+  req.pipe(proxyReq);
+});
+
 // --- Public endpoints ---
 
 app.get('/api/health', (_req, res) => {

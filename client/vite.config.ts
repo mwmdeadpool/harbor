@@ -18,6 +18,10 @@ export default defineConfig({
         target: 'ws://localhost:3333',
         ws: true,
       },
+      '/media': {
+        target: 'http://localhost:3334',
+        changeOrigin: true,
+      },
     },
   },
   build: {

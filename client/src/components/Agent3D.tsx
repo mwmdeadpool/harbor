@@ -4,6 +4,7 @@ import { Html, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import type { AgentState } from '../types';
 import { getAgentColor } from '../types';
+import { SpeakingIndicator } from './SpeakingIndicator';
 
 interface Agent3DProps {
   agent: AgentState;
@@ -11,12 +12,11 @@ interface Agent3DProps {
 
 export function Agent3D({ agent }: Agent3DProps) {
   const groupRef = useRef<THREE.Group>(null);
+  const bodyRef = useRef<THREE.Group>(null);
   const glowRef = useRef<THREE.Mesh>(null);
   const bobOffset = useRef(Math.random() * Math.PI * 2); // random phase so agents don't bob in sync
 
   const color = useMemo(() => getAgentColor(agent.name), [agent.name]);
-  const colorObj = useMemo(() => new THREE.Color(color), [color]);
-
   // Idle bob + speaking glow animation
   useFrame((_, delta) => {
     if (!groupRef.current) return;
@@ -27,6 +27,16 @@ export function Agent3D({ agent }: Agent3DProps) {
     groupRef.current.position.y = agent.position.y + bobY;
     groupRef.current.position.x = agent.position.x;
     groupRef.current.position.z = agent.position.z;
+
+    // Speaking body sway
+    if (bodyRef.current) {
+      if (agent.speaking) {
+        const sway = Math.sin(bobOffset.current * 2.5) * 0.03;
+        bodyRef.current.rotation.z = sway;
+      } else {
+        bodyRef.current.rotation.z *= 0.9; // ease back to neutral
+      }
+    }
 
     // Speaking glow pulse
     if (glowRef.current) {
@@ -43,29 +53,34 @@ export function Agent3D({ agent }: Agent3DProps) {
 
   return (
     <group ref={groupRef} position={[agent.position.x, agent.position.y, agent.position.z]}>
-      {/* Body — capsule shape using cylinder + two spheres */}
-      <mesh position={[0, 0.7, 0]} castShadow>
-        <cylinderGeometry args={[0.25, 0.3, 0.8, 16]} />
-        <meshStandardMaterial color={color} roughness={0.4} metalness={0.1} />
-      </mesh>
+      <group ref={bodyRef}>
+        {/* Body — capsule shape using cylinder + two spheres */}
+        <mesh position={[0, 0.7, 0]} castShadow>
+          <cylinderGeometry args={[0.25, 0.3, 0.8, 16]} />
+          <meshStandardMaterial color={color} roughness={0.4} metalness={0.1} />
+        </mesh>
 
-      {/* Head — sphere */}
-      <mesh position={[0, 1.35, 0]} castShadow>
-        <sphereGeometry args={[0.22, 16, 16]} />
-        <meshStandardMaterial color={color} roughness={0.3} metalness={0.15} />
-      </mesh>
+        {/* Head — sphere */}
+        <mesh position={[0, 1.35, 0]} castShadow>
+          <sphereGeometry args={[0.22, 16, 16]} />
+          <meshStandardMaterial color={color} roughness={0.3} metalness={0.15} />
+        </mesh>
 
-      {/* Neck connector */}
-      <mesh position={[0, 1.1, 0]}>
-        <cylinderGeometry args={[0.1, 0.15, 0.1, 8]} />
-        <meshStandardMaterial color={color} roughness={0.5} />
-      </mesh>
+        {/* Neck connector */}
+        <mesh position={[0, 1.1, 0]}>
+          <cylinderGeometry args={[0.1, 0.15, 0.1, 8]} />
+          <meshStandardMaterial color={color} roughness={0.5} />
+        </mesh>
 
-      {/* Base/feet */}
-      <mesh position={[0, 0.15, 0]}>
-        <cylinderGeometry args={[0.3, 0.35, 0.3, 16]} />
-        <meshStandardMaterial color={new THREE.Color(color).multiplyScalar(0.6)} roughness={0.6} />
-      </mesh>
+        {/* Base/feet */}
+        <mesh position={[0, 0.15, 0]}>
+          <cylinderGeometry args={[0.3, 0.35, 0.3, 16]} />
+          <meshStandardMaterial
+            color={new THREE.Color(color).multiplyScalar(0.6)}
+            roughness={0.6}
+          />
+        </mesh>
+      </group>
 
       {/* Speaking glow ring */}
       <mesh ref={glowRef} position={[0, 0.7, 0]} scale={0}>
@@ -132,27 +147,8 @@ export function Agent3D({ agent }: Agent3DProps) {
         </Html>
       )}
 
-      {/* Speaking indicator */}
-      {agent.speaking && (
-        <Html position={[0.4, 1.5, 0]} center style={{ pointerEvents: 'none' }}>
-          <div
-            style={{
-              width: '10px',
-              height: '10px',
-              borderRadius: '50%',
-              background: colorObj.getStyle(),
-              boxShadow: `0 0 8px ${color}, 0 0 16px ${color}88`,
-              animation: 'pulse 0.6s ease-in-out infinite alternate',
-            }}
-          />
-          <style>{`
-            @keyframes pulse {
-              from { transform: scale(0.8); opacity: 0.6; }
-              to { transform: scale(1.3); opacity: 1; }
-            }
-          `}</style>
-        </Html>
-      )}
+      {/* Speaking indicator — animated sound wave bars */}
+      <SpeakingIndicator agentName={agent.name} visible={agent.speaking} />
 
       {/* Mood ring at the base */}
       {agent.mood && agent.mood !== 'neutral' && (
