@@ -8,7 +8,7 @@ on:
 
 jobs:
   typecheck:
-    name: typecheck
+    name: typecheck (${{ matrix.dir }})
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -31,7 +31,7 @@ jobs:
         run: npx tsc --noEmit
 
   build:
-    name: build
+    name: build (${{ matrix.dir }})
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -62,6 +62,21 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
 
-      - name: Prettier check
+      - name: Install server deps (includes prettier)
+        working-directory: server
+        run: npm ci
+
+      - name: Install client deps
+        working-directory: client
+        run: npm ci
+
+      - name: Prettier check (server)
+        working-directory: server
+        run: npx prettier --check "**/*.ts"
+
+      - name: Prettier check (client)
+        working-directory: client
         run: npx prettier --check "**/*.{ts,tsx}"

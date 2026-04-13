@@ -114,33 +114,22 @@ export function getLatestSnapshot(): WorldState | null {
 
 // --- User persistence ---
 
-export function getUser(
-  username: string,
-): {
+export function getUser(username: string): {
   id: string;
   username: string;
   password_hash: string;
   role: string;
 } | null {
-  const row = getDb()
-    .prepare('SELECT * FROM users WHERE username = ?')
-    .get(username) as
+  const row = getDb().prepare('SELECT * FROM users WHERE username = ?').get(username) as
     | { id: string; username: string; password_hash: string; role: string }
     | undefined;
 
   return row ?? null;
 }
 
-export function createUser(
-  id: string,
-  username: string,
-  passwordHash: string,
-  role: string,
-): void {
+export function createUser(id: string, username: string, passwordHash: string, role: string): void {
   getDb()
-    .prepare(
-      'INSERT INTO users (id, username, password_hash, role) VALUES (?, ?, ?, ?)',
-    )
+    .prepare('INSERT INTO users (id, username, password_hash, role) VALUES (?, ?, ?, ?)')
     .run(id, username, passwordHash, role);
 }
 

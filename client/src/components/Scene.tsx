@@ -120,11 +120,7 @@ export function Scene() {
           shadow-camera-top={20}
           shadow-camera-bottom={-20}
         />
-        <directionalLight
-          position={[-5, 8, -5]}
-          intensity={0.2}
-          color="#6644aa"
-        />
+        <directionalLight position={[-5, 8, -5]} intensity={0.2} color="#6644aa" />
 
         {/* Fog for depth */}
         <fog attach="fog" args={['#1a1a2e', 25, 60]} />

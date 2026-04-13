@@ -34,13 +34,7 @@ export interface HarborInboundMessage {
 
 export type HarborMessageCallback = (message: HarborInboundMessage) => void;
 
-export type AgentActivity =
-  | 'idle'
-  | 'working'
-  | 'speaking'
-  | 'listening'
-  | 'thinking'
-  | 'moving';
+export type AgentActivity = 'idle' | 'working' | 'speaking' | 'listening' | 'thinking' | 'moving';
 
 interface HarborWsMessage {
   type: string;
@@ -173,8 +167,7 @@ function handleIncoming(raw: string): void {
 }
 
 async function connectWs(): Promise<void> {
-  if (!config)
-    throw new Error('Adapter not initialized — call initAdapter() first');
+  if (!config) throw new Error('Adapter not initialized — call initAdapter() first');
 
   const wsUrl = config.serverUrl.replace(/^http/, 'ws') + '/ws/adapter';
 
@@ -226,9 +219,7 @@ async function connectWs(): Promise<void> {
 /**
  * Initialize the Harbor adapter and connect to the Harbor server.
  */
-export async function initAdapter(
-  adapterConfig: HarborAdapterConfig,
-): Promise<void> {
+export async function initAdapter(adapterConfig: HarborAdapterConfig): Promise<void> {
   config = adapterConfig;
   intentionalClose = false;
   reconnectAttempts = 0;
@@ -281,10 +272,7 @@ export function onHarborMessage(callback: HarborMessageCallback): void {
 /**
  * Update an agent's presence/activity state in Harbor.
  */
-export function updateAgentPresence(
-  agentId: string,
-  activity: AgentActivity,
-): boolean {
+export function updateAgentPresence(agentId: string, activity: AgentActivity): boolean {
   return send({
     type: 'agent:state',
     payload: { agentId, activity },

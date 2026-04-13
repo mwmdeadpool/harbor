@@ -146,9 +146,7 @@ export function ChatOverlay({ onSend }: ChatOverlayProps) {
             </div>
             <div
               style={{
-                background: msg.isUser
-                  ? 'rgba(120, 80, 255, 0.15)'
-                  : 'rgba(255, 255, 255, 0.06)',
+                background: msg.isUser ? 'rgba(120, 80, 255, 0.15)' : 'rgba(255, 255, 255, 0.06)',
                 border: msg.isUser
                   ? '1px solid rgba(120, 80, 255, 0.25)'
                   : '1px solid rgba(255, 255, 255, 0.08)',

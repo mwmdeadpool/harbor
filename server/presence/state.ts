@@ -79,9 +79,7 @@ export class StateEngine {
   /**
    * Validate, apply, persist, and return an event with its assigned sequence.
    */
-  applyEvent(
-    event: Omit<WorldEvent, 'sequence'>,
-  ): WorldEvent & { sequence: number } {
+  applyEvent(event: Omit<WorldEvent, 'sequence'>): WorldEvent & { sequence: number } {
     // Increment sequence
     this.state.sequence += 1;
     const seq = this.state.sequence;
@@ -109,10 +107,7 @@ export class StateEngine {
       this.takeSnapshot();
     }
 
-    log.debug(
-      { type: fullEvent.type, seq, agentId: fullEvent.agentId },
-      'Event applied',
-    );
+    log.debug({ type: fullEvent.type, seq, agentId: fullEvent.agentId }, 'Event applied');
     return fullEvent;
   }
 
@@ -134,8 +129,7 @@ export class StateEngine {
         if (!agentId || !this.state.agents[agentId]) break;
         const agent = this.state.agents[agentId];
         if (data.position) agent.position = data.position as Position;
-        if (data.rotation !== undefined)
-          agent.rotation = data.rotation as number;
+        if (data.rotation !== undefined) agent.rotation = data.rotation as number;
         if (data.zone) agent.zone = data.zone as string;
         agent.lastActive = event.timestamp;
         break;

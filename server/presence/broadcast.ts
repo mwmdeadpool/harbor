@@ -33,10 +33,7 @@ export class BroadcastManager {
   removeClient(ws: WebSocket): void {
     const client = this.clients.get(ws);
     if (client) {
-      log.info(
-        { userId: client.userId, total: this.clients.size - 1 },
-        'Client disconnected',
-      );
+      log.info({ userId: client.userId, total: this.clients.size - 1 }, 'Client disconnected');
     }
     this.clients.delete(ws);
   }
@@ -62,10 +59,7 @@ export class BroadcastManager {
       }
     }
 
-    log.debug(
-      { type: event.type, sequence: event.sequence, sent, failed },
-      'Event broadcast',
-    );
+    log.debug({ type: event.type, sequence: event.sequence, sent, failed }, 'Event broadcast');
   }
 
   /**

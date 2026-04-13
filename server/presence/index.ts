@@ -6,13 +6,7 @@ import { WebSocketServer } from 'ws';
 import pino from 'pino';
 
 import { initDb, closeDb } from './db.js';
-import {
-  initAuth,
-  loginUser,
-  verifyToken,
-  requireAuth,
-  requireCapability,
-} from './auth.js';
+import { initAuth, loginUser, verifyToken, requireAuth, requireCapability } from './auth.js';
 import type { AuthRequest } from './auth.js';
 import { StateEngine } from './state.js';
 import { PolicyEngine } from './policy.js';
@@ -169,11 +163,7 @@ server.on('upgrade', (request, socket, head) => {
 
 wss.on(
   'connection',
-  (
-    ws: import('ws').WebSocket,
-    _request: import('http').IncomingMessage,
-    userId: string,
-  ) => {
+  (ws: import('ws').WebSocket, _request: import('http').IncomingMessage, userId: string) => {
     broadcastManager.addClient(ws, userId);
 
     // Send full state on connect

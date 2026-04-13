@@ -100,8 +100,7 @@ export class HarborChannel implements Channel {
     // Extract room from JID, derive agent name from registered group
     const room = jid.replace(HARBOR_JID_PREFIX, '');
     const group = this.opts.registeredGroups()[jid];
-    const agentId =
-      group?.assistantName?.toLowerCase() || group?.name || 'margot';
+    const agentId = group?.assistantName?.toLowerCase() || group?.name || 'margot';
 
     sendToHarbor(agentId, text);
   }
@@ -123,8 +122,7 @@ export class HarborChannel implements Channel {
     if (!this.ownsJid(jid) || !isAdapterConnected()) return;
 
     const group = this.opts.registeredGroups()[jid];
-    const agentId =
-      group?.assistantName?.toLowerCase() || group?.name || 'margot';
+    const agentId = group?.assistantName?.toLowerCase() || group?.name || 'margot';
 
     // Typing → working animation in Harbor; not typing → idle
     updateAgentPresence(agentId, isTyping ? 'thinking' : 'idle');
@@ -137,8 +135,7 @@ export class HarborChannel implements Channel {
 // which means Harbor won't activate unless HARBOR_SERVER_URL + HARBOR_ADAPTER_TOKEN are set.
 
 registerChannel('harbor', (opts: ChannelOpts) => {
-  const serverUrl =
-    process.env.HARBOR_SERVER_URL || `http://localhost:${DEFAULT_HARBOR_PORT}`;
+  const serverUrl = process.env.HARBOR_SERVER_URL || `http://localhost:${DEFAULT_HARBOR_PORT}`;
   const token = process.env.HARBOR_ADAPTER_TOKEN || '';
 
   if (!token) {

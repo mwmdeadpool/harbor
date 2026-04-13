@@ -58,9 +58,7 @@ export function HUD() {
       {/* Connection status */}
       <div style={styles.badge}>
         <div style={styles.dot(connected)} />
-        <span style={styles.value}>
-          {connected ? 'Connected' : 'Disconnected'}
-        </span>
+        <span style={styles.value}>{connected ? 'Connected' : 'Disconnected'}</span>
       </div>
 
       {/* Agent count */}

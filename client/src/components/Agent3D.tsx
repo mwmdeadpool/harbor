@@ -42,10 +42,7 @@ export function Agent3D({ agent }: Agent3DProps) {
   });
 
   return (
-    <group
-      ref={groupRef}
-      position={[agent.position.x, agent.position.y, agent.position.z]}
-    >
+    <group ref={groupRef} position={[agent.position.x, agent.position.y, agent.position.z]}>
       {/* Body — capsule shape using cylinder + two spheres */}
       <mesh position={[0, 0.7, 0]} castShadow>
         <cylinderGeometry args={[0.25, 0.3, 0.8, 16]} />
@@ -67,21 +64,13 @@ export function Agent3D({ agent }: Agent3DProps) {
       {/* Base/feet */}
       <mesh position={[0, 0.15, 0]}>
         <cylinderGeometry args={[0.3, 0.35, 0.3, 16]} />
-        <meshStandardMaterial
-          color={new THREE.Color(color).multiplyScalar(0.6)}
-          roughness={0.6}
-        />
+        <meshStandardMaterial color={new THREE.Color(color).multiplyScalar(0.6)} roughness={0.6} />
       </mesh>
 
       {/* Speaking glow ring */}
       <mesh ref={glowRef} position={[0, 0.7, 0]} scale={0}>
         <sphereGeometry args={[0.6, 16, 16]} />
-        <meshBasicMaterial
-          color={color}
-          transparent
-          opacity={0.15}
-          side={THREE.BackSide}
-        />
+        <meshBasicMaterial color={color} transparent opacity={0.15} side={THREE.BackSide} />
       </mesh>
 
       {/* Eye dots — give them a face */}
@@ -169,11 +158,7 @@ export function Agent3D({ agent }: Agent3DProps) {
       {agent.mood && agent.mood !== 'neutral' && (
         <mesh position={[0, 0.02, 0]} rotation-x={-Math.PI / 2}>
           <ringGeometry args={[0.35, 0.45, 24]} />
-          <meshBasicMaterial
-            color={getMoodColor(agent.mood)}
-            transparent
-            opacity={0.4}
-          />
+          <meshBasicMaterial color={getMoodColor(agent.mood)} transparent opacity={0.4} />
         </mesh>
       )}
     </group>

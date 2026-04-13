@@ -78,10 +78,7 @@ function FloorGrid({ width, depth }: { width: number; depth: number }) {
         <meshStandardMaterial color="#1a1a2e" />
       </mesh>
       {/* Grid lines */}
-      <gridHelper
-        args={[width, width, '#2a2a4e', '#222240']}
-        position={[0, 0, 0]}
-      />
+      <gridHelper args={[width, width, '#2a2a4e', '#222240']} position={[0, 0, 0]} />
     </group>
   );
 }
@@ -109,19 +106,11 @@ function WallOutlines({ width, depth }: { width: number; depth: number }) {
         <planeGeometry args={[width, wallHeight]} />
       </mesh>
       {/* Left wall */}
-      <mesh
-        position={[-halfW, wallHeight / 2, 0]}
-        rotation-y={Math.PI / 2}
-        material={wallMaterial}
-      >
+      <mesh position={[-halfW, wallHeight / 2, 0]} rotation-y={Math.PI / 2} material={wallMaterial}>
         <planeGeometry args={[depth, wallHeight]} />
       </mesh>
       {/* Right wall */}
-      <mesh
-        position={[halfW, wallHeight / 2, 0]}
-        rotation-y={-Math.PI / 2}
-        material={wallMaterial}
-      >
+      <mesh position={[halfW, wallHeight / 2, 0]} rotation-y={-Math.PI / 2} material={wallMaterial}>
         <planeGeometry args={[depth, wallHeight]} />
       </mesh>
       {/* Wall edge lines */}
@@ -193,20 +182,10 @@ function Desk({ zone }: { zone: Zone }) {
       {/* Monitor */}
       <mesh position={[0, deskHeight + 0.35, -(size.depth / 2 - 0.15)]}>
         <boxGeometry args={[0.8, 0.5, 0.04]} />
-        <meshStandardMaterial
-          color="#111118"
-          emissive="#1a1a3e"
-          emissiveIntensity={0.5}
-        />
+        <meshStandardMaterial color="#111118" emissive="#1a1a3e" emissiveIntensity={0.5} />
       </mesh>
       {/* Name label */}
-      <Text
-        position={[0, 2.2, 0]}
-        fontSize={0.3}
-        color="#666688"
-        anchorX="center"
-        anchorY="middle"
-      >
+      <Text position={[0, 2.2, 0]} fontSize={0.3} color="#666688" anchorX="center" anchorY="middle">
         {name}
       </Text>
     </group>
@@ -242,9 +221,7 @@ interface RoomProps {
 export function Room({ config }: RoomProps) {
   const room = config || DEFAULT_ROOM;
   const desks = room.zones.filter((z) => z.type === 'desk');
-  const areas = room.zones.filter(
-    (z) => z.type === 'lounge' || z.type === 'meeting',
-  );
+  const areas = room.zones.filter((z) => z.type === 'lounge' || z.type === 'meeting');
 
   return (
     <group>

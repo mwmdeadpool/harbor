@@ -8,8 +8,7 @@ const styles = {
     justifyContent: 'center',
     width: '100vw',
     height: '100vh',
-    background:
-      'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
+    background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
   } as React.CSSProperties,
   card: {
     background: 'rgba(30, 30, 50, 0.9)',
