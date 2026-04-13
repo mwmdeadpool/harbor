@@ -49,6 +49,8 @@ export interface ChatMessage {
   isUser: boolean;
 }
 
+export type VoiceState = 'idle' | 'recording' | 'processing' | 'playing';
+
 export interface WSMessage {
   type: string;
   data: unknown;

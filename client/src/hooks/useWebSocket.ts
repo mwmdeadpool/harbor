@@ -44,6 +44,10 @@ export function useWebSocket() {
           case 'chat:message':
             addChatMessage(msg.data);
             break;
+          case 'agent:speak':
+            // Dispatch to global listener for audio playback
+            window.dispatchEvent(new MessageEvent('harbor:ws:message', { data: event.data }));
+            break;
           case 'auth:expired':
             logout();
             break;
