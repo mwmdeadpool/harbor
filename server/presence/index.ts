@@ -72,14 +72,17 @@ const LOGIN_RATE_WINDOW = 60 * 1000; // 1 minute
 const LOGIN_RATE_MAX = 5; // max attempts per window
 
 // Clean up stale rate limit entries every 5 minutes
-setInterval(() => {
-  const now = Date.now();
-  for (const [ip, entry] of loginRateLimit) {
-    if (now - entry.windowStart > LOGIN_RATE_WINDOW * 2) {
-      loginRateLimit.delete(ip);
+setInterval(
+  () => {
+    const now = Date.now();
+    for (const [ip, entry] of loginRateLimit) {
+      if (now - entry.windowStart > LOGIN_RATE_WINDOW * 2) {
+        loginRateLimit.delete(ip);
+      }
     }
-  }
-}, 5 * 60 * 1000).unref();
+  },
+  5 * 60 * 1000,
+).unref();
 
 function checkLoginRateLimit(ip: string): { allowed: boolean; retryAfter?: number } {
   const now = Date.now();
@@ -307,10 +310,7 @@ app.use('/media', (req, res) => {
   );
   proxyReq.on('error', (err) => {
     recordMediaError();
-    log.warn(
-      { err, url: proxyUrl, errorCount: mediaErrorCount },
-      'Media service proxy error',
-    );
+    log.warn({ err, url: proxyUrl, errorCount: mediaErrorCount }, 'Media service proxy error');
     if (!res.headersSent) res.status(502).json({ error: 'Media service unavailable' });
   });
   req.pipe(proxyReq);
@@ -508,7 +508,10 @@ app.post(
     try {
       behaviorEngine.processEvent(event, stateEngine.getState().agents);
     } catch (err) {
-      log.error({ err, fromAgent, toAgent }, 'Behavior engine tick failed during conversation — skipping');
+      log.error(
+        { err, fromAgent, toAgent },
+        'Behavior engine tick failed during conversation — skipping',
+      );
     }
 
     broadcastManager.broadcastEvent(event);

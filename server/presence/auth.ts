@@ -31,14 +31,17 @@ interface BlocklistEntry {
 const tokenBlocklist = new Map<string, BlocklistEntry>();
 
 // Purge expired entries every 5 minutes
-setInterval(() => {
-  const now = Date.now();
-  for (const [token, entry] of tokenBlocklist) {
-    if (now > entry.expiresAt) {
-      tokenBlocklist.delete(token);
+setInterval(
+  () => {
+    const now = Date.now();
+    for (const [token, entry] of tokenBlocklist) {
+      if (now > entry.expiresAt) {
+        tokenBlocklist.delete(token);
+      }
     }
-  }
-}, 5 * 60 * 1000).unref();
+  },
+  5 * 60 * 1000,
+).unref();
 
 /**
  * Revoke a token by adding it to the blocklist.
@@ -73,15 +76,18 @@ interface LoginAttempt {
 const failedLogins = new Map<string, LoginAttempt>();
 
 // Clean up stale entries every 10 minutes
-setInterval(() => {
-  const now = Date.now();
-  for (const [ip, attempt] of failedLogins) {
-    // Remove entries older than 15 minutes with no recent activity
-    if (now - attempt.lastAttempt > 15 * 60 * 1000) {
-      failedLogins.delete(ip);
+setInterval(
+  () => {
+    const now = Date.now();
+    for (const [ip, attempt] of failedLogins) {
+      // Remove entries older than 15 minutes with no recent activity
+      if (now - attempt.lastAttempt > 15 * 60 * 1000) {
+        failedLogins.delete(ip);
+      }
     }
-  }
-}, 10 * 60 * 1000).unref();
+  },
+  10 * 60 * 1000,
+).unref();
 
 /**
  * Record a failed login attempt for an IP address.
@@ -199,11 +205,7 @@ export function verifyToken(token: string): { userId: string; role: string } {
  * Login with username/password, return JWT.
  * Logs failures with IP address context (IP passed by caller).
  */
-export async function loginUser(
-  username: string,
-  password: string,
-  ip?: string,
-): Promise<string> {
+export async function loginUser(username: string, password: string, ip?: string): Promise<string> {
   const user = getUser(username);
   if (!user) {
     if (ip) recordFailedLogin(ip);

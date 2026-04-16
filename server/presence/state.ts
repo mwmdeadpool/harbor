@@ -64,13 +64,19 @@ export class StateEngine {
             );
           }
         } catch (replayErr) {
-          log.warn({ err: replayErr }, 'Event replay after snapshot failed — using snapshot state as-is');
+          log.warn(
+            { err: replayErr },
+            'Event replay after snapshot failed — using snapshot state as-is',
+          );
         }
 
         return state;
       }
     } catch (snapshotErr) {
-      log.warn({ err: snapshotErr }, 'Snapshot restore failed (corrupt?) — attempting full event replay');
+      log.warn(
+        { err: snapshotErr },
+        'Snapshot restore failed (corrupt?) — attempting full event replay',
+      );
     }
 
     // Stage 2: Full event replay from sequence 0
@@ -185,10 +191,7 @@ export class StateEngine {
    * Apply an event's effects to a world state object.
    * When called without a target, applies to this.state.
    */
-  private applyToState(
-    event: WorldEvent & { sequence: number },
-    target?: WorldState,
-  ): void {
+  private applyToState(event: WorldEvent & { sequence: number }, target?: WorldState): void {
     const state = target ?? this.state;
     const { type, agentId, data } = event;
 

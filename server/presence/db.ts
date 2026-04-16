@@ -59,9 +59,7 @@ export function initDb(): Database.Database {
   `);
 
   // Migration: add sequence column to state_snapshots if missing
-  const cols = db
-    .prepare("PRAGMA table_info(state_snapshots)")
-    .all() as Array<{ name: string }>;
+  const cols = db.prepare('PRAGMA table_info(state_snapshots)').all() as Array<{ name: string }>;
   const hasSeqCol = cols.some((c) => c.name === 'sequence');
   if (!hasSeqCol) {
     db.exec('ALTER TABLE state_snapshots ADD COLUMN sequence INTEGER NOT NULL DEFAULT 0');
@@ -171,9 +169,7 @@ export function compactSnapshots(keepCount: number): number {
  * Safe to call after a snapshot covers those events.
  */
 export function compactEvents(beforeSequence: number): number {
-  const result = getDb()
-    .prepare('DELETE FROM events WHERE sequence <= ?')
-    .run(beforeSequence);
+  const result = getDb().prepare('DELETE FROM events WHERE sequence <= ?').run(beforeSequence);
 
   if (result.changes > 0) {
     log.info({ deleted: result.changes, beforeSequence }, 'Compacted events');
@@ -185,9 +181,9 @@ export function compactEvents(beforeSequence: number): number {
  * Get total number of snapshots.
  */
 export function getSnapshotCount(): number {
-  const row = getDb()
-    .prepare('SELECT COUNT(*) as count FROM state_snapshots')
-    .get() as { count: number };
+  const row = getDb().prepare('SELECT COUNT(*) as count FROM state_snapshots').get() as {
+    count: number;
+  };
   return row.count;
 }
 
@@ -195,9 +191,7 @@ export function getSnapshotCount(): number {
  * Get total number of events.
  */
 export function getEventCount(): number {
-  const row = getDb()
-    .prepare('SELECT COUNT(*) as count FROM events')
-    .get() as { count: number };
+  const row = getDb().prepare('SELECT COUNT(*) as count FROM events').get() as { count: number };
   return row.count;
 }
 
@@ -211,9 +205,7 @@ export function runCompaction(keepSnapshots = 5): void {
 
     // Find the oldest kept snapshot's sequence — everything before it can be purged
     const row = getDb()
-      .prepare(
-        `SELECT sequence FROM state_snapshots ORDER BY id ASC LIMIT 1`,
-      )
+      .prepare(`SELECT sequence FROM state_snapshots ORDER BY id ASC LIMIT 1`)
       .get() as { sequence: number } | undefined;
 
     if (row && row.sequence > 0) {

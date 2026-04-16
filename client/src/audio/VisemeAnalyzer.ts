@@ -21,7 +21,7 @@ export interface VisemeWeights {
 
 export class VisemeAnalyzer {
   private analyser: AnalyserNode;
-  private freqData: Uint8Array;
+  private freqData: Uint8Array<ArrayBuffer>;
   private sampleRate: number;
   private binCount: number;
   private connected = false;
