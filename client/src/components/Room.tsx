@@ -100,15 +100,9 @@ function FloorGrid({ width, depth }: { width: number; depth: number }) {
         />
       </mesh>
       {/* Subtle neon grid */}
-      <gridHelper
-        args={[width, width * 2, '#1a1a3a', '#141428']}
-        position={[0, 0.001, 0]}
-      />
+      <gridHelper args={[width, width * 2, '#1a1a3a', '#141428']} position={[0, 0.001, 0]} />
       {/* Brighter accent grid — sparser */}
-      <gridHelper
-        args={[width, width / 2, '#2e1e5e', '#2e1e5e']}
-        position={[0, 0.002, 0]}
-      />
+      <gridHelper args={[width, width / 2, '#2e1e5e', '#2e1e5e']} position={[0, 0.002, 0]} />
     </group>
   );
 }
@@ -177,11 +171,7 @@ function Walls({ width, depth }: { width: number; depth: number }) {
         <boxGeometry args={[width, 0.03, 0.03]} />
       </mesh>
       {/* Left wall */}
-      <mesh
-        position={[-halfW, wallHeight / 2, 0]}
-        rotation-y={Math.PI / 2}
-        material={wallMaterial}
-      >
+      <mesh position={[-halfW, wallHeight / 2, 0]} rotation-y={Math.PI / 2} material={wallMaterial}>
         <planeGeometry args={[depth, wallHeight]} />
       </mesh>
       {/* Left wall top trim */}
@@ -193,11 +183,7 @@ function Walls({ width, depth }: { width: number; depth: number }) {
         <boxGeometry args={[depth, 0.03, 0.03]} />
       </mesh>
       {/* Right wall */}
-      <mesh
-        position={[halfW, wallHeight / 2, 0]}
-        rotation-y={-Math.PI / 2}
-        material={wallMaterial}
-      >
+      <mesh position={[halfW, wallHeight / 2, 0]} rotation-y={-Math.PI / 2} material={wallMaterial}>
         <planeGeometry args={[depth, wallHeight]} />
       </mesh>
       {/* Right wall top trim */}
@@ -211,16 +197,8 @@ function Walls({ width, depth }: { width: number; depth: number }) {
 
       {/* Glow strips along wall bases */}
       <GlowStrip position={[0, 0.02, -halfD + 0.04]} width={width} />
-      <GlowStrip
-        position={[-halfW + 0.04, 0.02, 0]}
-        width={depth}
-        rotation={Math.PI / 2}
-      />
-      <GlowStrip
-        position={[halfW - 0.04, 0.02, 0]}
-        width={depth}
-        rotation={Math.PI / 2}
-      />
+      <GlowStrip position={[-halfW + 0.04, 0.02, 0]} width={depth} rotation={Math.PI / 2} />
+      <GlowStrip position={[halfW - 0.04, 0.02, 0]} width={depth} rotation={Math.PI / 2} />
 
       {/* Vertical corner accents */}
       {[
@@ -262,12 +240,7 @@ function Ceiling({ width, depth }: { width: number; depth: number }) {
       {/* Ceiling plane */}
       <mesh rotation-x={Math.PI / 2} position={[0, ceilingY, 0]}>
         <planeGeometry args={[width, depth]} />
-        <meshStandardMaterial
-          color="#0a0a14"
-          side={THREE.DoubleSide}
-          transparent
-          opacity={0.85}
-        />
+        <meshStandardMaterial color="#0a0a14" side={THREE.DoubleSide} transparent opacity={0.85} />
       </mesh>
       {/* Recessed light spots */}
       {lights.map(([lx, lz], i) => (
@@ -356,13 +329,7 @@ const DeskLamp = React.memo(function DeskLamp({
           toneMapped={false}
         />
       </mesh>
-      <pointLight
-        position={[0, 0.32, 0]}
-        color={color}
-        intensity={0.3}
-        distance={2.5}
-        decay={2}
-      />
+      <pointLight position={[0, 0.32, 0]} color={color} intensity={0.3} distance={2.5} decay={2} />
     </group>
   );
 });
@@ -378,11 +345,7 @@ const Desk = React.memo(function Desk({ zone }: { zone: Zone }) {
       {/* Desk surface */}
       <mesh position={[0, deskHeight, 0]} castShadow>
         <boxGeometry args={[size.width, 0.05, size.depth]} />
-        <meshStandardMaterial
-          color="#22223a"
-          metalness={0.3}
-          roughness={0.5}
-        />
+        <meshStandardMaterial color="#22223a" metalness={0.3} roughness={0.5} />
       </mesh>
       {/* Desk edge accent strip */}
       <mesh position={[0, deskHeight + 0.026, size.depth / 2]}>
@@ -396,22 +359,13 @@ const Desk = React.memo(function Desk({ zone }: { zone: Zone }) {
       </mesh>
       {/* Panel sides */}
       {[-1, 1].map((side) => (
-        <mesh
-          key={side}
-          position={[
-            side * (size.width / 2 - 0.03),
-            deskHeight / 2,
-            0,
-          ]}
-        >
+        <mesh key={side} position={[side * (size.width / 2 - 0.03), deskHeight / 2, 0]}>
           <boxGeometry args={[0.04, deskHeight, size.depth]} />
           <meshStandardMaterial color="#181828" metalness={0.4} roughness={0.6} />
         </mesh>
       ))}
       {/* Back panel */}
-      <mesh
-        position={[0, deskHeight / 2, -(size.depth / 2 - 0.02)]}
-      >
+      <mesh position={[0, deskHeight / 2, -(size.depth / 2 - 0.02)]}>
         <boxGeometry args={[size.width - 0.08, deskHeight * 0.6, 0.03]} />
         <meshStandardMaterial color="#181828" metalness={0.3} roughness={0.7} />
       </mesh>
@@ -538,12 +492,7 @@ function HolographicDisplay({
           />
         </mesh>
         {/* Glow light */}
-        <pointLight
-          color={color}
-          intensity={0.6}
-          distance={4}
-          decay={2}
-        />
+        <pointLight color={color} intensity={0.6} distance={4} decay={2} />
       </group>
     </Float>
   );
@@ -560,12 +509,7 @@ const LoungeArea = React.memo(function LoungeArea({ zone }: { zone: Zone }) {
       {/* Zone floor */}
       <mesh rotation-x={-Math.PI / 2} position={[0, 0.006, 0]}>
         <planeGeometry args={[size.width, size.depth]} />
-        <meshStandardMaterial
-          color="#0e1e2e"
-          transparent
-          opacity={0.6}
-          metalness={0.2}
-        />
+        <meshStandardMaterial color="#0e1e2e" transparent opacity={0.6} metalness={0.2} />
       </mesh>
       {/* Zone border accent */}
       {[
@@ -628,11 +572,7 @@ const LoungeArea = React.memo(function LoungeArea({ zone }: { zone: Zone }) {
       </mesh>
 
       {/* Holographic display above table */}
-      <HolographicDisplay
-        position={[0, 1.2, 0]}
-        size={0.8}
-        color="#2288ff"
-      />
+      <HolographicDisplay position={[0, 1.2, 0]} size={0.8} color="#2288ff" />
 
       {/* Zone label */}
       <Text
@@ -673,12 +613,7 @@ const MeetingRoom = React.memo(function MeetingRoom({ zone }: { zone: Zone }) {
       {/* Zone floor */}
       <mesh rotation-x={-Math.PI / 2} position={[0, 0.006, 0]}>
         <planeGeometry args={[size.width, size.depth]} />
-        <meshStandardMaterial
-          color="#160e28"
-          transparent
-          opacity={0.6}
-          metalness={0.2}
-        />
+        <meshStandardMaterial color="#160e28" transparent opacity={0.6} metalness={0.2} />
       </mesh>
       {/* Zone border accent */}
       {[
@@ -734,11 +669,7 @@ const MeetingRoom = React.memo(function MeetingRoom({ zone }: { zone: Zone }) {
       ))}
 
       {/* Large holographic display */}
-      <HolographicDisplay
-        position={[0, 1.8, 0]}
-        size={1.4}
-        color="#8844ff"
-      />
+      <HolographicDisplay position={[0, 1.8, 0]} size={1.4} color="#8844ff" />
 
       {/* Zone label */}
       <Text

@@ -219,7 +219,16 @@ export function useWebSocket() {
         });
       }
     }
-  }, [token, setConnected, setConnectionStatus, updateState, addEvent, addChatMessage, addAgentConversation, logout]);
+  }, [
+    token,
+    setConnected,
+    setConnectionStatus,
+    updateState,
+    addEvent,
+    addChatMessage,
+    addAgentConversation,
+    logout,
+  ]);
 
   const send = useCallback((type: string, data: unknown = {}) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {

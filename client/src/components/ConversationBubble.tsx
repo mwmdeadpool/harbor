@@ -14,7 +14,10 @@ interface ConversationBubbleProps {
   agents: Record<string, AgentState>;
 }
 
-export const ConversationBubble = React.memo(function ConversationBubble({ conversation, agents }: ConversationBubbleProps) {
+export const ConversationBubble = React.memo(function ConversationBubble({
+  conversation,
+  agents,
+}: ConversationBubbleProps) {
   const [visible, setVisible] = useState(true);
   const [opacity, setOpacity] = useState(1);
   const age = useRef(0);
@@ -87,7 +90,10 @@ interface ConversationLayerProps {
   agents: Record<string, AgentState>;
 }
 
-export const ConversationLayer = React.memo(function ConversationLayer({ conversations, agents }: ConversationLayerProps) {
+export const ConversationLayer = React.memo(function ConversationLayer({
+  conversations,
+  agents,
+}: ConversationLayerProps) {
   // Only show recent conversations (last 10 seconds)
   const [active, setActive] = useState<AgentConversation[]>([]);
 

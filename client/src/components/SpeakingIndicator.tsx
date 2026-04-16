@@ -42,7 +42,10 @@ function injectKeyframes() {
   document.head.appendChild(style);
 }
 
-export const SpeakingIndicator = React.memo(function SpeakingIndicator({ agentName, visible }: SpeakingIndicatorProps) {
+export const SpeakingIndicator = React.memo(function SpeakingIndicator({
+  agentName,
+  visible,
+}: SpeakingIndicatorProps) {
   const color = getAgentColor(agentName);
   const containerRef = useRef<HTMLDivElement>(null);
   const wasVisible = useRef(false);

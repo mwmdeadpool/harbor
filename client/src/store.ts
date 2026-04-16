@@ -66,7 +66,13 @@ export const useStore = create<HarborStore>((set) => ({
   },
   logout: () => {
     saveToken(null);
-    set({ token: null, worldState: null, chatMessages: [], connected: false, connectionStatus: 'disconnected' as ConnectionStatus });
+    set({
+      token: null,
+      worldState: null,
+      chatMessages: [],
+      connected: false,
+      connectionStatus: 'disconnected' as ConnectionStatus,
+    });
   },
 
   // World

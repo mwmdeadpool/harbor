@@ -97,8 +97,13 @@ function VRMAvatarInner({ url, animation, speaking }: VRMAvatarProps) {
         speakingPhase.current += delta * 12;
         // Oscillate mouth open/close with some variation
         const mouthValue =
-          0.3 + Math.sin(speakingPhase.current) * 0.25 + Math.sin(speakingPhase.current * 1.7) * 0.15;
-        vrm.expressionManager.setValue(VRMExpressionPresetName.Aa, Math.max(0, Math.min(1, mouthValue)));
+          0.3 +
+          Math.sin(speakingPhase.current) * 0.25 +
+          Math.sin(speakingPhase.current * 1.7) * 0.15;
+        vrm.expressionManager.setValue(
+          VRMExpressionPresetName.Aa,
+          Math.max(0, Math.min(1, mouthValue)),
+        );
         // Slight expression changes while speaking
         vrm.expressionManager.setValue(VRMExpressionPresetName.Happy, 0.1);
       } else {

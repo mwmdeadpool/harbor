@@ -133,10 +133,18 @@ export function Agent3D({ agent }: Agent3DProps) {
     // Smoothly blend glow
     if (glowRef.current) {
       const currentScale = glowRef.current.scale.x;
-      const newScale = THREE.MathUtils.lerp(currentScale, targetGlowScale.current, delta * BLEND_SPEED);
+      const newScale = THREE.MathUtils.lerp(
+        currentScale,
+        targetGlowScale.current,
+        delta * BLEND_SPEED,
+      );
       glowRef.current.scale.setScalar(newScale);
       const mat = glowRef.current.material as THREE.MeshBasicMaterial;
-      mat.opacity = THREE.MathUtils.lerp(mat.opacity, targetGlowOpacity.current, delta * BLEND_SPEED);
+      mat.opacity = THREE.MathUtils.lerp(
+        mat.opacity,
+        targetGlowOpacity.current,
+        delta * BLEND_SPEED,
+      );
     }
   });
 
@@ -153,10 +161,7 @@ export function Agent3D({ agent }: Agent3DProps) {
       <group ref={bodyRef}>
         {hasVRM ? (
           /* VRM avatar model */
-          <group
-            scale={avatarConfig?.scale ?? 1.0}
-            position={avatarConfig?.offset ?? [0, 0, 0]}
-          >
+          <group scale={avatarConfig?.scale ?? 1.0} position={avatarConfig?.offset ?? [0, 0, 0]}>
             <VRMAvatar url={vrmUrl} animation={agent.animation} speaking={agent.speaking} />
           </group>
         ) : (
@@ -182,10 +187,7 @@ export function Agent3D({ agent }: Agent3DProps) {
             {/* Base */}
             <mesh position={[0, 0.15, 0]}>
               <cylinderGeometry args={[0.3, 0.35, 0.3, 16]} />
-              <meshStandardMaterial
-                color={baseColor}
-                roughness={0.6}
-              />
+              <meshStandardMaterial color={baseColor} roughness={0.6} />
             </mesh>
           </>
         )}
