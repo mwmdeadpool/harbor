@@ -22,6 +22,131 @@ function getJwtSecret(): string {
   return JWT_SECRET;
 }
 
+// --- Token revocation blocklist (in-memory with TTL) ---
+
+interface BlocklistEntry {
+  expiresAt: number; // timestamp when the token would naturally expire
+}
+
+const tokenBlocklist = new Map<string, BlocklistEntry>();
+
+// Purge expired entries every 5 minutes
+setInterval(
+  () => {
+    const now = Date.now();
+    for (const [token, entry] of tokenBlocklist) {
+      if (now > entry.expiresAt) {
+        tokenBlocklist.delete(token);
+      }
+    }
+  },
+  5 * 60 * 1000,
+).unref();
+
+/**
+ * Revoke a token by adding it to the blocklist.
+ * The entry auto-expires when the token's natural expiry passes.
+ */
+export function revokeToken(token: string, expiresInMs: number = 24 * 60 * 60 * 1000): void {
+  tokenBlocklist.set(token, { expiresAt: Date.now() + expiresInMs });
+  log.info('Token revoked');
+}
+
+/**
+ * Check if a token has been revoked.
+ */
+export function isTokenRevoked(token: string): boolean {
+  const entry = tokenBlocklist.get(token);
+  if (!entry) return false;
+  if (Date.now() > entry.expiresAt) {
+    tokenBlocklist.delete(token);
+    return false;
+  }
+  return true;
+}
+
+// --- Failed login tracking ---
+
+interface LoginAttempt {
+  count: number;
+  firstAttempt: number;
+  lastAttempt: number;
+}
+
+const failedLogins = new Map<string, LoginAttempt>();
+
+// Clean up stale entries every 10 minutes
+setInterval(
+  () => {
+    const now = Date.now();
+    for (const [ip, attempt] of failedLogins) {
+      // Remove entries older than 15 minutes with no recent activity
+      if (now - attempt.lastAttempt > 15 * 60 * 1000) {
+        failedLogins.delete(ip);
+      }
+    }
+  },
+  10 * 60 * 1000,
+).unref();
+
+/**
+ * Record a failed login attempt for an IP address.
+ */
+export function recordFailedLogin(ip: string): void {
+  const existing = failedLogins.get(ip);
+  const now = Date.now();
+  if (existing) {
+    existing.count++;
+    existing.lastAttempt = now;
+  } else {
+    failedLogins.set(ip, { count: 1, firstAttempt: now, lastAttempt: now });
+  }
+  const entry = failedLogins.get(ip)!;
+  log.warn({ ip, attempts: entry.count }, 'Failed login attempt');
+}
+
+/**
+ * Get the current failed login state for an IP.
+ */
+export function getFailedLoginState(ip: string): LoginAttempt | undefined {
+  return failedLogins.get(ip);
+}
+
+/**
+ * Clear failed login attempts for an IP (on successful login).
+ */
+export function clearFailedLogins(ip: string): void {
+  failedLogins.delete(ip);
+}
+
+/**
+ * Get the rate limit delay in ms for an IP based on failed attempts (exponential backoff).
+ * Returns 0 if no delay needed.
+ */
+export function getLoginDelay(ip: string): number {
+  const state = failedLogins.get(ip);
+  if (!state || state.count < 3) return 0;
+  // Exponential backoff: 1s, 2s, 4s, 8s, ... capped at 30s
+  const delay = Math.min(1000 * Math.pow(2, state.count - 3), 30000);
+  return delay;
+}
+
+// --- Timing-safe comparison helper ---
+
+/**
+ * Timing-safe string comparison to prevent timing attacks.
+ */
+function timingSafeEqual(a: string, b: string): boolean {
+  const bufA = Buffer.from(a, 'utf-8');
+  const bufB = Buffer.from(b, 'utf-8');
+  if (bufA.length !== bufB.length) {
+    // Compare against self to maintain constant time
+    crypto.timingSafeEqual(bufA, bufA);
+    return false;
+  }
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
 // Extend Express Request to carry auth info
 export interface AuthRequest extends Request {
   userId?: string;
@@ -58,14 +183,19 @@ export async function initAuth(_db: Database.Database): Promise<void> {
 
 /**
  * Verify a user JWT and return payload.
+ * Uses timing-safe comparison for token type check and checks revocation blocklist.
  */
 export function verifyToken(token: string): { userId: string; role: string } {
+  if (isTokenRevoked(token)) {
+    throw new Error('Token has been revoked');
+  }
+
   const payload = jwt.verify(token, getJwtSecret()) as {
     userId: string;
     role: string;
     type?: string;
   };
-  if (payload.type === 'capability') {
+  if (payload.type && timingSafeEqual(payload.type, 'capability')) {
     throw new Error('Capability token used where user token is required');
   }
   return { userId: payload.userId, role: payload.role };
@@ -73,19 +203,31 @@ export function verifyToken(token: string): { userId: string; role: string } {
 
 /**
  * Login with username/password, return JWT.
+ * Logs failures with IP address context (IP passed by caller).
  */
-export async function loginUser(username: string, password: string): Promise<string> {
+export async function loginUser(username: string, password: string, ip?: string): Promise<string> {
   const user = getUser(username);
-  if (!user) throw new Error('Invalid credentials');
+  if (!user) {
+    if (ip) recordFailedLogin(ip);
+    log.warn({ username, ip }, 'Login failed — unknown user');
+    throw new Error('Invalid credentials');
+  }
 
   const valid = await bcrypt.compare(password, user.password_hash);
-  if (!valid) throw new Error('Invalid credentials');
+  if (!valid) {
+    if (ip) recordFailedLogin(ip);
+    log.warn({ username, ip }, 'Login failed — wrong password');
+    throw new Error('Invalid credentials');
+  }
+
+  // Successful login — clear failed attempts
+  if (ip) clearFailedLogins(ip);
 
   const token = jwt.sign({ userId: user.id, role: user.role, type: 'user' }, getJwtSecret(), {
     expiresIn: '24h',
   });
 
-  log.info({ username, role: user.role }, 'User logged in');
+  log.info({ username, role: user.role, ip }, 'User logged in');
   return token;
 }
 
@@ -100,17 +242,22 @@ export function createCapabilityToken(agentId: string, capabilities: string[]): 
 
 /**
  * Verify an agent capability token.
+ * Uses timing-safe comparison for token type check and checks revocation blocklist.
  */
 export function verifyCapabilityToken(token: string): {
   agentId: string;
   capabilities: string[];
 } {
+  if (isTokenRevoked(token)) {
+    throw new Error('Token has been revoked');
+  }
+
   const payload = jwt.verify(token, getJwtSecret()) as {
     agentId: string;
     capabilities: string[];
     type: string;
   };
-  if (payload.type !== 'capability') {
+  if (!timingSafeEqual(payload.type, 'capability')) {
     throw new Error('User token used where capability token is required');
   }
   return { agentId: payload.agentId, capabilities: payload.capabilities };

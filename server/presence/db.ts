@@ -8,6 +8,10 @@ const log = pino({ name: 'harbor:db' });
 
 let db: Database.Database;
 
+// WAL checkpoint tracking
+let eventsSinceCheckpoint = 0;
+const WAL_CHECKPOINT_INTERVAL = 1000;
+
 export function getDb(): Database.Database {
   if (!db) throw new Error('Database not initialized — call initDb() first');
   return db;
@@ -37,6 +41,7 @@ export function initDb(): Database.Database {
     CREATE TABLE IF NOT EXISTS state_snapshots (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       timestamp INTEGER NOT NULL,
+      sequence INTEGER NOT NULL DEFAULT 0,
       state TEXT NOT NULL
     );
 
@@ -50,7 +55,17 @@ export function initDb(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_events_sequence ON events(sequence);
     CREATE INDEX IF NOT EXISTS idx_events_type ON events(type);
     CREATE INDEX IF NOT EXISTS idx_events_agent_id ON events(agent_id);
+    CREATE INDEX IF NOT EXISTS idx_snapshots_sequence ON state_snapshots(sequence);
   `);
+
+  // Migration: add sequence column to state_snapshots if missing
+  const cols = db.prepare('PRAGMA table_info(state_snapshots)').all() as Array<{ name: string }>;
+  const hasSeqCol = cols.some((c) => c.name === 'sequence');
+  if (!hasSeqCol) {
+    db.exec('ALTER TABLE state_snapshots ADD COLUMN sequence INTEGER NOT NULL DEFAULT 0');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_snapshots_sequence ON state_snapshots(sequence)');
+    log.info('Migrated state_snapshots: added sequence column');
+  }
 
   log.info('Database initialized');
   return db;
@@ -71,6 +86,12 @@ export function persistEvent(event: WorldEvent & { sequence: number }): void {
     event.agentId ?? null,
     JSON.stringify(event.data),
   );
+
+  // Periodic WAL checkpoint
+  eventsSinceCheckpoint += 1;
+  if (eventsSinceCheckpoint >= WAL_CHECKPOINT_INTERVAL) {
+    walCheckpoint();
+  }
 }
 
 export function getEventsSince(seq: number): WorldEvent[] {
@@ -99,17 +120,117 @@ export function getEventsSince(seq: number): WorldEvent[] {
 
 export function saveSnapshot(state: WorldState): void {
   getDb()
-    .prepare('INSERT INTO state_snapshots (timestamp, state) VALUES (?, ?)')
-    .run(Date.now(), JSON.stringify(state));
+    .prepare('INSERT INTO state_snapshots (timestamp, sequence, state) VALUES (?, ?, ?)')
+    .run(Date.now(), state.sequence, JSON.stringify(state));
 }
 
-export function getLatestSnapshot(): WorldState | null {
+export function getLatestSnapshot(): { state: WorldState; sequence: number } | null {
   const row = getDb()
-    .prepare('SELECT state FROM state_snapshots ORDER BY id DESC LIMIT 1')
-    .get() as { state: string } | undefined;
+    .prepare('SELECT state, sequence FROM state_snapshots ORDER BY id DESC LIMIT 1')
+    .get() as { state: string; sequence: number } | undefined;
 
   if (!row) return null;
-  return JSON.parse(row.state) as WorldState;
+  return { state: JSON.parse(row.state) as WorldState, sequence: row.sequence };
+}
+
+/**
+ * Get the sequence number of the most recent snapshot.
+ */
+export function getLastSnapshotSequence(): number {
+  const row = getDb()
+    .prepare('SELECT sequence FROM state_snapshots ORDER BY id DESC LIMIT 1')
+    .get() as { sequence: number } | undefined;
+
+  return row?.sequence ?? 0;
+}
+
+// --- Snapshot compaction ---
+
+/**
+ * Delete all but the N most recent snapshots.
+ */
+export function compactSnapshots(keepCount: number): number {
+  const result = getDb()
+    .prepare(
+      `DELETE FROM state_snapshots WHERE id NOT IN (
+        SELECT id FROM state_snapshots ORDER BY id DESC LIMIT ?
+      )`,
+    )
+    .run(keepCount);
+
+  if (result.changes > 0) {
+    log.info({ deleted: result.changes, kept: keepCount }, 'Compacted snapshots');
+  }
+  return result.changes;
+}
+
+/**
+ * Delete events with sequence <= the given sequence number.
+ * Safe to call after a snapshot covers those events.
+ */
+export function compactEvents(beforeSequence: number): number {
+  const result = getDb().prepare('DELETE FROM events WHERE sequence <= ?').run(beforeSequence);
+
+  if (result.changes > 0) {
+    log.info({ deleted: result.changes, beforeSequence }, 'Compacted events');
+  }
+  return result.changes;
+}
+
+/**
+ * Get total number of snapshots.
+ */
+export function getSnapshotCount(): number {
+  const row = getDb().prepare('SELECT COUNT(*) as count FROM state_snapshots').get() as {
+    count: number;
+  };
+  return row.count;
+}
+
+/**
+ * Get total number of events.
+ */
+export function getEventCount(): number {
+  const row = getDb().prepare('SELECT COUNT(*) as count FROM events').get() as { count: number };
+  return row.count;
+}
+
+/**
+ * Run compaction after a snapshot: keep last N snapshots and delete events
+ * covered by the oldest kept snapshot.
+ */
+export function runCompaction(keepSnapshots = 5): void {
+  try {
+    compactSnapshots(keepSnapshots);
+
+    // Find the oldest kept snapshot's sequence — everything before it can be purged
+    const row = getDb()
+      .prepare(`SELECT sequence FROM state_snapshots ORDER BY id ASC LIMIT 1`)
+      .get() as { sequence: number } | undefined;
+
+    if (row && row.sequence > 0) {
+      // Delete events before the oldest kept snapshot (not including its sequence,
+      // since replay needs events *after* the snapshot sequence)
+      compactEvents(row.sequence);
+    }
+  } catch (err) {
+    log.error({ err }, 'Compaction failed');
+  }
+}
+
+// --- WAL checkpoint ---
+
+/**
+ * Force a WAL checkpoint to keep the WAL file from growing unbounded.
+ */
+export function walCheckpoint(): void {
+  try {
+    getDb().pragma('wal_checkpoint(TRUNCATE)');
+    eventsSinceCheckpoint = 0;
+    log.debug('WAL checkpoint completed');
+  } catch (err) {
+    log.error({ err }, 'WAL checkpoint failed');
+  }
 }
 
 // --- User persistence ---
@@ -135,6 +256,13 @@ export function createUser(id: string, username: string, passwordHash: string, r
 
 export function closeDb(): void {
   if (db) {
+    // Final WAL checkpoint on shutdown
+    try {
+      db.pragma('wal_checkpoint(TRUNCATE)');
+      log.info('Final WAL checkpoint completed');
+    } catch (err) {
+      log.error({ err }, 'Final WAL checkpoint failed');
+    }
     db.close();
     log.info('Database closed');
   }
