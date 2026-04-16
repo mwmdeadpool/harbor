@@ -5,6 +5,10 @@ import * as THREE from 'three';
 import type { AgentState } from '../types';
 import { getAgentColor } from '../types';
 import { SpeakingIndicator } from './SpeakingIndicator';
+import { AgentMouth } from './AgentMouth';
+import { VRMAvatar } from './VRMAvatar';
+import { AGENT_AVATARS } from '../config/avatars';
+import type { VisemeWeights } from '../audio/VisemeAnalyzer';
 
 interface Agent3DProps {
   agent: AgentState;
@@ -16,18 +20,47 @@ export function Agent3D({ agent }: Agent3DProps) {
   const glowRef = useRef<THREE.Mesh>(null);
   const bobOffset = useRef(Math.random() * Math.PI * 2);
 
-  const color = useMemo(() => getAgentColor(agent.name), [agent.name]);
+  // Smooth animation parameter blending — interpolate between states
+  const currentBobSpeed = useRef(1.5);
+  const currentBobHeight = useRef(0.05);
+  const targetBodyRotZ = useRef(0);
+  const targetBodyRotX = useRef(0);
+  const targetGlowScale = useRef(0);
+  const targetGlowOpacity = useRef(0);
 
-  // Activity-based animation parameters
+  const color = useMemo(() => getAgentColor(agent.name), [agent.name]);
+  const baseColor = useMemo(() => new THREE.Color(color).multiplyScalar(0.6), [color]);
+
+  // Resolve VRM avatar URL: prefer agent.avatar, fall back to config map
+  const avatarConfig = useMemo(() => AGENT_AVATARS[agent.name.toLowerCase()], [agent.name]);
+  const vrmUrl = agent.avatar || avatarConfig?.vrmUrl || '';
+  const hasVRM = vrmUrl.length > 0;
+
+  // Target animation parameters
   const animParams = useMemo(
     () => getActivityAnimation(agent.activity, agent.animation),
     [agent.activity, agent.animation],
   );
 
+  // Smooth transition speed — how fast to blend between animation states
+  const BLEND_SPEED = 3;
+
   useFrame((_, delta) => {
     if (!groupRef.current) return;
 
-    bobOffset.current += delta * animParams.bobSpeed;
+    // Smoothly blend bob parameters instead of snapping
+    currentBobSpeed.current = THREE.MathUtils.lerp(
+      currentBobSpeed.current,
+      animParams.bobSpeed,
+      delta * BLEND_SPEED,
+    );
+    currentBobHeight.current = THREE.MathUtils.lerp(
+      currentBobHeight.current,
+      animParams.bobHeight,
+      delta * BLEND_SPEED,
+    );
+
+    bobOffset.current += delta * currentBobSpeed.current;
 
     // Position with smooth lerp for movement
     const targetX = agent.position.x;
@@ -37,94 +70,125 @@ export function Agent3D({ agent }: Agent3DProps) {
     groupRef.current.position.x = THREE.MathUtils.lerp(currentX, targetX, delta * 3);
     groupRef.current.position.z = THREE.MathUtils.lerp(currentZ, targetZ, delta * 3);
     groupRef.current.position.y =
-      agent.position.y + Math.sin(bobOffset.current) * animParams.bobHeight;
+      agent.position.y + Math.sin(bobOffset.current) * currentBobHeight.current;
 
-    // Smooth rotation lerp
+    // Smooth rotation lerp with shortest-path wrapping
     if (agent.rotation !== undefined) {
       const targetRot = agent.rotation;
-      const currentRot = groupRef.current.rotation.y;
-      groupRef.current.rotation.y = THREE.MathUtils.lerp(currentRot, targetRot, delta * 4);
+      let currentRot = groupRef.current.rotation.y;
+      // Wrap to find shortest rotation path
+      let diff = targetRot - currentRot;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      groupRef.current.rotation.y = currentRot + diff * Math.min(1, delta * 4);
     }
 
-    // Body animation based on activity
+    // Calculate target body rotations based on activity (then blend below)
+    if (agent.speaking || agent.activity === 'talking') {
+      targetBodyRotZ.current = Math.sin(bobOffset.current * 2.5) * 0.04;
+      targetBodyRotX.current = 0;
+    } else if (agent.activity === 'working' || agent.activity === 'coding') {
+      targetBodyRotZ.current = Math.sin(bobOffset.current * 6) * 0.008;
+      targetBodyRotX.current = 0;
+    } else if (agent.activity === 'thinking') {
+      targetBodyRotZ.current = Math.sin(bobOffset.current * 0.5) * 0.03;
+      targetBodyRotX.current = Math.sin(bobOffset.current * 0.3) * 0.02;
+    } else if (agent.animation === 'listening') {
+      targetBodyRotX.current = -0.05;
+      targetBodyRotZ.current = 0;
+    } else if (agent.animation === 'wave') {
+      targetBodyRotZ.current = Math.sin(bobOffset.current * 4) * 0.06;
+      targetBodyRotX.current = 0;
+    } else {
+      targetBodyRotZ.current = 0;
+      targetBodyRotX.current = 0;
+    }
+
+    // Smoothly blend body rotations
     if (bodyRef.current) {
-      if (agent.speaking || agent.activity === 'talking') {
-        // Speaking sway
-        const sway = Math.sin(bobOffset.current * 2.5) * 0.04;
-        bodyRef.current.rotation.z = sway;
-      } else if (agent.activity === 'working' || agent.activity === 'coding') {
-        // Subtle typing motion
-        const typing = Math.sin(bobOffset.current * 6) * 0.008;
-        bodyRef.current.rotation.z = typing;
-      } else if (agent.activity === 'thinking') {
-        // Slow tilt
-        const think = Math.sin(bobOffset.current * 0.5) * 0.03;
-        bodyRef.current.rotation.z = think;
-        bodyRef.current.rotation.x = Math.sin(bobOffset.current * 0.3) * 0.02;
-      } else if (agent.animation === 'listening') {
-        // Slight lean forward
-        bodyRef.current.rotation.x = -0.05;
-        bodyRef.current.rotation.z *= 0.95;
-      } else if (agent.animation === 'wave') {
-        // Wave animation — body tilt
-        const wave = Math.sin(bobOffset.current * 4) * 0.06;
-        bodyRef.current.rotation.z = wave;
-      } else {
-        // Ease back to neutral
-        bodyRef.current.rotation.z *= 0.9;
-        bodyRef.current.rotation.x *= 0.9;
-      }
+      bodyRef.current.rotation.z = THREE.MathUtils.lerp(
+        bodyRef.current.rotation.z,
+        targetBodyRotZ.current,
+        delta * BLEND_SPEED * 2,
+      );
+      bodyRef.current.rotation.x = THREE.MathUtils.lerp(
+        bodyRef.current.rotation.x,
+        targetBodyRotX.current,
+        delta * BLEND_SPEED * 2,
+      );
     }
 
-    // Glow pulse for speaking/presenting
+    // Calculate target glow parameters
+    if (agent.speaking || agent.activity === 'presenting') {
+      targetGlowScale.current = 0.8 + Math.sin(bobOffset.current * 4) * 0.4;
+      targetGlowOpacity.current = 0.15 + Math.sin(bobOffset.current * 4) * 0.1;
+    } else if (agent.activity === 'thinking') {
+      targetGlowScale.current = 0.5 + Math.sin(bobOffset.current * 1.5) * 0.2;
+      targetGlowOpacity.current = 0.08;
+    } else {
+      targetGlowScale.current = 0;
+      targetGlowOpacity.current = 0;
+    }
+
+    // Smoothly blend glow
     if (glowRef.current) {
-      if (agent.speaking || agent.activity === 'presenting') {
-        const pulse = 0.8 + Math.sin(bobOffset.current * 4) * 0.4;
-        glowRef.current.scale.setScalar(pulse);
-        (glowRef.current.material as THREE.MeshBasicMaterial).opacity =
-          0.15 + Math.sin(bobOffset.current * 4) * 0.1;
-      } else if (agent.activity === 'thinking') {
-        // Gentle thinking glow
-        const pulse = 0.5 + Math.sin(bobOffset.current * 1.5) * 0.2;
-        glowRef.current.scale.setScalar(pulse);
-        (glowRef.current.material as THREE.MeshBasicMaterial).opacity = 0.08;
-      } else {
-        glowRef.current.scale.setScalar(0);
-      }
+      const currentScale = glowRef.current.scale.x;
+      const newScale = THREE.MathUtils.lerp(currentScale, targetGlowScale.current, delta * BLEND_SPEED);
+      glowRef.current.scale.setScalar(newScale);
+      const mat = glowRef.current.material as THREE.MeshBasicMaterial;
+      mat.opacity = THREE.MathUtils.lerp(mat.opacity, targetGlowOpacity.current, delta * BLEND_SPEED);
     }
   });
 
   const activityIcon = getActivityIcon(agent.activity, agent.animation);
 
+  // Default viseme weights driven by speaking state.
+  // When per-agent audio sources are wired up, replace with useVisemes() output.
+  const defaultVisemes: VisemeWeights = agent.speaking
+    ? { aa: 0.5, oh: 0, ee: 0, ss: 0, silence: 0 }
+    : { aa: 0, oh: 0, ee: 0, ss: 0, silence: 1 };
+
   return (
     <group ref={groupRef} position={[agent.position.x, agent.position.y, agent.position.z]}>
       <group ref={bodyRef}>
-        {/* Body — capsule shape */}
-        <mesh position={[0, 0.7, 0]} castShadow>
-          <cylinderGeometry args={[0.25, 0.3, 0.8, 16]} />
-          <meshStandardMaterial color={color} roughness={0.4} metalness={0.1} />
-        </mesh>
+        {hasVRM ? (
+          /* VRM avatar model */
+          <group
+            scale={avatarConfig?.scale ?? 1.0}
+            position={avatarConfig?.offset ?? [0, 0, 0]}
+          >
+            <VRMAvatar url={vrmUrl} animation={agent.animation} speaking={agent.speaking} />
+          </group>
+        ) : (
+          <>
+            {/* Body — capsule shape */}
+            <mesh position={[0, 0.7, 0]} castShadow>
+              <cylinderGeometry args={[0.25, 0.3, 0.8, 16]} />
+              <meshStandardMaterial color={color} roughness={0.4} metalness={0.1} />
+            </mesh>
 
-        {/* Head */}
-        <mesh position={[0, 1.35, 0]} castShadow>
-          <sphereGeometry args={[0.22, 16, 16]} />
-          <meshStandardMaterial color={color} roughness={0.3} metalness={0.15} />
-        </mesh>
+            {/* Head */}
+            <mesh position={[0, 1.35, 0]} castShadow>
+              <sphereGeometry args={[0.22, 16, 16]} />
+              <meshStandardMaterial color={color} roughness={0.3} metalness={0.15} />
+            </mesh>
 
-        {/* Neck */}
-        <mesh position={[0, 1.1, 0]}>
-          <cylinderGeometry args={[0.1, 0.15, 0.1, 8]} />
-          <meshStandardMaterial color={color} roughness={0.5} />
-        </mesh>
+            {/* Neck */}
+            <mesh position={[0, 1.1, 0]}>
+              <cylinderGeometry args={[0.1, 0.15, 0.1, 8]} />
+              <meshStandardMaterial color={color} roughness={0.5} />
+            </mesh>
 
-        {/* Base */}
-        <mesh position={[0, 0.15, 0]}>
-          <cylinderGeometry args={[0.3, 0.35, 0.3, 16]} />
-          <meshStandardMaterial
-            color={new THREE.Color(color).multiplyScalar(0.6)}
-            roughness={0.6}
-          />
-        </mesh>
+            {/* Base */}
+            <mesh position={[0, 0.15, 0]}>
+              <cylinderGeometry args={[0.3, 0.35, 0.3, 16]} />
+              <meshStandardMaterial
+                color={baseColor}
+                roughness={0.6}
+              />
+            </mesh>
+          </>
+        )}
       </group>
 
       {/* Speaking/thinking glow ring */}
@@ -151,6 +215,9 @@ export function Agent3D({ agent }: Agent3DProps) {
         <sphereGeometry args={[0.018, 8, 8]} />
         <meshBasicMaterial color="#111111" />
       </mesh>
+
+      {/* Mouth — viseme-driven lip sync */}
+      {!hasVRM && <AgentMouth visemes={defaultVisemes} />}
 
       {/* Name label */}
       <Text

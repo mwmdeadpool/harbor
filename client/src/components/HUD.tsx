@@ -1,4 +1,32 @@
 import { useStore } from '../store';
+import type { ConnectionStatus } from '../store';
+
+function dotColor(status: ConnectionStatus): string {
+  switch (status) {
+    case 'connected':
+      return '#44cc66';
+    case 'connecting':
+    case 'reconnecting':
+      return '#ccaa44';
+    case 'disconnected':
+    default:
+      return '#cc4444';
+  }
+}
+
+function statusLabel(status: ConnectionStatus): string {
+  switch (status) {
+    case 'connected':
+      return 'Connected';
+    case 'connecting':
+      return 'Connecting...';
+    case 'reconnecting':
+      return 'Reconnecting...';
+    case 'disconnected':
+    default:
+      return 'Disconnected';
+  }
+}
 
 const styles = {
   container: {
@@ -25,12 +53,12 @@ const styles = {
     fontSize: '12px',
     color: '#aaaacc',
   },
-  dot: (connected: boolean) => ({
+  dot: (status: ConnectionStatus) => ({
     width: '8px',
     height: '8px',
     borderRadius: '50%',
-    background: connected ? '#44cc66' : '#cc4444',
-    boxShadow: connected ? '0 0 6px #44cc66' : '0 0 6px #cc4444',
+    background: dotColor(status),
+    boxShadow: `0 0 6px ${dotColor(status)}`,
   }),
   label: {
     fontSize: '10px',
@@ -47,7 +75,7 @@ const styles = {
 };
 
 export function HUD() {
-  const connected = useStore((s) => s.connected);
+  const connectionStatus = useStore((s) => s.connectionStatus);
   const worldState = useStore((s) => s.worldState);
 
   const agentCount = worldState ? Object.keys(worldState.agents).length : 0;
@@ -57,8 +85,8 @@ export function HUD() {
     <div style={styles.container}>
       {/* Connection status */}
       <div style={styles.badge}>
-        <div style={styles.dot(connected)} />
-        <span style={styles.value}>{connected ? 'Connected' : 'Disconnected'}</span>
+        <div style={styles.dot(connectionStatus)} />
+        <span style={styles.value}>{statusLabel(connectionStatus)}</span>
       </div>
 
       {/* Agent count */}

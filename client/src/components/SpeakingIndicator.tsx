@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Html } from '@react-three/drei';
 import { getAgentColor } from '../types';
 
@@ -42,7 +42,7 @@ function injectKeyframes() {
   document.head.appendChild(style);
 }
 
-export function SpeakingIndicator({ agentName, visible }: SpeakingIndicatorProps) {
+export const SpeakingIndicator = React.memo(function SpeakingIndicator({ agentName, visible }: SpeakingIndicatorProps) {
   const color = getAgentColor(agentName);
   const containerRef = useRef<HTMLDivElement>(null);
   const wasVisible = useRef(false);
@@ -94,4 +94,4 @@ export function SpeakingIndicator({ agentName, visible }: SpeakingIndicatorProps
       </div>
     </Html>
   );
-}
+});

@@ -4,6 +4,7 @@ import {
   getEventsSince as dbGetEventsSince,
   getLatestSnapshot,
   saveSnapshot,
+  runCompaction,
 } from './db.js';
 import type {
   WorldState,
@@ -24,15 +25,77 @@ export class StateEngine {
   private eventsSinceSnapshot = 0;
 
   constructor() {
-    // Try to restore from snapshot, otherwise build default state
-    const snapshot = getLatestSnapshot();
-    if (snapshot) {
-      this.state = snapshot;
-      log.info({ sequence: snapshot.sequence }, 'Restored state from snapshot');
-    } else {
-      this.state = this.buildDefaultState();
-      log.info('Initialized default world state');
+    this.state = this.recover();
+  }
+
+  /**
+   * Multi-stage recovery:
+   * 1. Try snapshot + replay events since snapshot
+   * 2. If snapshot is corrupt, replay all events from scratch
+   * 3. If all recovery fails, start fresh with default state
+   */
+  private recover(): WorldState {
+    // Stage 1: Try snapshot restore + event replay
+    try {
+      const snapshot = getLatestSnapshot();
+      if (snapshot) {
+        const state = snapshot.state;
+        const snapshotSeq = snapshot.sequence;
+        log.info({ sequence: snapshotSeq }, 'Restored state from snapshot');
+
+        // Replay any events that occurred after the snapshot
+        try {
+          const missedEvents = dbGetEventsSince(snapshotSeq);
+          if (missedEvents.length > 0) {
+            log.info(
+              { count: missedEvents.length, fromSeq: snapshotSeq },
+              'Replaying events since snapshot',
+            );
+            for (const event of missedEvents) {
+              this.applyToState(event as WorldEvent & { sequence: number }, state);
+              if (event.sequence !== undefined) {
+                state.sequence = event.sequence as number;
+              }
+            }
+            state.timestamp = Date.now();
+            log.info(
+              { sequence: state.sequence, replayed: missedEvents.length },
+              'Event replay complete',
+            );
+          }
+        } catch (replayErr) {
+          log.warn({ err: replayErr }, 'Event replay after snapshot failed — using snapshot state as-is');
+        }
+
+        return state;
+      }
+    } catch (snapshotErr) {
+      log.warn({ err: snapshotErr }, 'Snapshot restore failed (corrupt?) — attempting full event replay');
     }
+
+    // Stage 2: Full event replay from sequence 0
+    try {
+      const allEvents = dbGetEventsSince(0);
+      if (allEvents.length > 0) {
+        log.info({ count: allEvents.length }, 'Replaying all events from scratch');
+        const state = this.buildDefaultState();
+        for (const event of allEvents) {
+          this.applyToState(event as WorldEvent & { sequence: number }, state);
+          if (event.sequence !== undefined) {
+            state.sequence = event.sequence as number;
+          }
+        }
+        state.timestamp = Date.now();
+        log.info({ sequence: state.sequence }, 'Full event replay complete');
+        return state;
+      }
+    } catch (replayErr) {
+      log.error({ err: replayErr }, 'Full event replay failed');
+    }
+
+    // Stage 3: Fresh start
+    log.warn('All recovery methods failed — starting with default state');
+    return this.buildDefaultState();
   }
 
   private buildDefaultState(): WorldState {
@@ -119,15 +182,20 @@ export class StateEngine {
   }
 
   /**
-   * Apply an event's effects to the in-memory world state.
+   * Apply an event's effects to a world state object.
+   * When called without a target, applies to this.state.
    */
-  private applyToState(event: WorldEvent & { sequence: number }): void {
+  private applyToState(
+    event: WorldEvent & { sequence: number },
+    target?: WorldState,
+  ): void {
+    const state = target ?? this.state;
     const { type, agentId, data } = event;
 
     switch (type) {
       case 'agent:move': {
-        if (!agentId || !this.state.agents[agentId]) break;
-        const agent = this.state.agents[agentId];
+        if (!agentId || !state.agents[agentId]) break;
+        const agent = state.agents[agentId];
         if (data.position) agent.position = data.position as Position;
         if (data.rotation !== undefined) agent.rotation = data.rotation as number;
         if (data.zone) agent.zone = data.zone as string;
@@ -136,43 +204,48 @@ export class StateEngine {
       }
 
       case 'agent:speak': {
-        if (!agentId || !this.state.agents[agentId]) break;
-        const agent = this.state.agents[agentId];
+        if (!agentId || !state.agents[agentId]) break;
+        const agent = state.agents[agentId];
         agent.speaking = true;
         agent.activity = 'talking';
         agent.animation = 'talking';
         agent.lastActive = event.timestamp;
         // Auto-clear speaking after a delay (handled by caller or timeout)
-        setTimeout(() => {
-          if (this.state.agents[agentId]) {
-            this.state.agents[agentId].speaking = false;
-            if (this.state.agents[agentId].activity === 'talking') {
-              this.state.agents[agentId].activity = 'idle';
-              this.state.agents[agentId].animation = 'idle';
+        // Only set timeouts for live state, not during replay
+        if (!target) {
+          setTimeout(() => {
+            if (this.state.agents[agentId]) {
+              this.state.agents[agentId].speaking = false;
+              if (this.state.agents[agentId].activity === 'talking') {
+                this.state.agents[agentId].activity = 'idle';
+                this.state.agents[agentId].animation = 'idle';
+              }
             }
-          }
-        }, 5000);
+          }, 5000);
+        }
         break;
       }
 
       case 'agent:gesture': {
-        if (!agentId || !this.state.agents[agentId]) break;
-        const agent = this.state.agents[agentId];
+        if (!agentId || !state.agents[agentId]) break;
+        const agent = state.agents[agentId];
         if (data.animation) agent.animation = data.animation as string;
         agent.lastActive = event.timestamp;
-        // Reset animation after duration
-        const duration = (data.duration as number) || 3000;
-        setTimeout(() => {
-          if (this.state.agents[agentId]) {
-            this.state.agents[agentId].animation = 'idle';
-          }
-        }, duration);
+        // Reset animation after duration — only for live state
+        if (!target) {
+          const duration = (data.duration as number) || 3000;
+          setTimeout(() => {
+            if (this.state.agents[agentId]) {
+              this.state.agents[agentId].animation = 'idle';
+            }
+          }, duration);
+        }
         break;
       }
 
       case 'agent:status': {
-        if (!agentId || !this.state.agents[agentId]) break;
-        const agent = this.state.agents[agentId];
+        if (!agentId || !state.agents[agentId]) break;
+        const agent = state.agents[agentId];
         if (data.activity) agent.activity = data.activity as AgentActivity;
         if (data.mood) agent.mood = data.mood as string;
         if (data.animation) agent.animation = data.animation as string;
@@ -181,16 +254,16 @@ export class StateEngine {
       }
 
       case 'user:join': {
-        this.state.user.online = true;
-        this.state.user.lastSeen = event.timestamp;
-        if (data.zone) this.state.user.zone = data.zone as string;
-        if (data.position) this.state.user.position = data.position as Position;
+        state.user.online = true;
+        state.user.lastSeen = event.timestamp;
+        if (data.zone) state.user.zone = data.zone as string;
+        if (data.position) state.user.position = data.position as Position;
         break;
       }
 
       case 'user:leave': {
-        this.state.user.online = false;
-        this.state.user.lastSeen = event.timestamp;
+        state.user.online = false;
+        state.user.lastSeen = event.timestamp;
         break;
       }
 
@@ -206,57 +279,63 @@ export class StateEngine {
         // We mark both agents as talking and update their rotations to face each other
         const fromId = data.fromAgent as string;
         const toId = data.toAgent as string;
-        if (fromId && this.state.agents[fromId]) {
-          this.state.agents[fromId].speaking = true;
-          this.state.agents[fromId].activity = 'talking';
-          this.state.agents[fromId].lastActive = event.timestamp;
+        if (fromId && state.agents[fromId]) {
+          state.agents[fromId].speaking = true;
+          state.agents[fromId].activity = 'talking';
+          state.agents[fromId].lastActive = event.timestamp;
 
-          if (toId && this.state.agents[toId]) {
+          if (toId && state.agents[toId]) {
             // Face toward the speaker
-            const from = this.state.agents[fromId].position;
-            const to = this.state.agents[toId].position;
-            this.state.agents[toId].activity = 'idle';
-            this.state.agents[toId].animation = 'listening';
-            this.state.agents[toId].lastActive = event.timestamp;
+            const from = state.agents[fromId].position;
+            const to = state.agents[toId].position;
+            state.agents[toId].activity = 'idle';
+            state.agents[toId].animation = 'listening';
+            state.agents[toId].lastActive = event.timestamp;
             // Calculate facing angle
             const angle = Math.atan2(from.x - to.x, from.z - to.z);
-            this.state.agents[toId].rotation = angle;
+            state.agents[toId].rotation = angle;
           }
 
-          setTimeout(() => {
-            if (this.state.agents[fromId]) {
-              this.state.agents[fromId].speaking = false;
-              if (this.state.agents[fromId].activity === 'talking') {
-                this.state.agents[fromId].activity = 'idle';
-                this.state.agents[fromId].animation = 'idle';
+          // Only set timeouts for live state
+          if (!target) {
+            setTimeout(() => {
+              if (this.state.agents[fromId]) {
+                this.state.agents[fromId].speaking = false;
+                if (this.state.agents[fromId].activity === 'talking') {
+                  this.state.agents[fromId].activity = 'idle';
+                  this.state.agents[fromId].animation = 'idle';
+                }
               }
-            }
-            if (toId && this.state.agents[toId]) {
-              this.state.agents[toId].animation = 'idle';
-            }
-          }, 5000);
+              if (toId && this.state.agents[toId]) {
+                this.state.agents[toId].animation = 'idle';
+              }
+            }, 5000);
+          }
         }
         break;
       }
 
       case 'agent:react': {
         // Behavioral reaction — gesture, wave, nod, etc.
-        if (!agentId || !this.state.agents[agentId]) break;
-        const agent = this.state.agents[agentId];
+        if (!agentId || !state.agents[agentId]) break;
+        const agent = state.agents[agentId];
         if (data.animation) agent.animation = data.animation as string;
         if (data.mood) agent.mood = data.mood as string;
         agent.lastActive = event.timestamp;
-        const reactDuration = (data.duration as number) || 3000;
-        setTimeout(() => {
-          if (this.state.agents[agentId!]) {
-            this.state.agents[agentId!].animation = 'idle';
-          }
-        }, reactDuration);
+        // Only set timeouts for live state
+        if (!target) {
+          const reactDuration = (data.duration as number) || 3000;
+          setTimeout(() => {
+            if (this.state.agents[agentId!]) {
+              this.state.agents[agentId!].animation = 'idle';
+            }
+          }, reactDuration);
+        }
         break;
       }
 
       case 'room:update': {
-        if (data.name) this.state.room.name = data.name as string;
+        if (data.name) state.room.name = data.name as string;
         break;
       }
 
@@ -270,6 +349,9 @@ export class StateEngine {
       saveSnapshot(this.state);
       this.eventsSinceSnapshot = 0;
       log.info({ sequence: this.state.sequence }, 'State snapshot saved');
+
+      // Run compaction after snapshot — keep last 5 snapshots, purge old events
+      runCompaction(5);
     } catch (err) {
       log.error({ err }, 'Failed to save snapshot');
     }

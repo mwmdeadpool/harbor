@@ -1,3 +1,4 @@
+import React from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import { useStore } from '../store';
@@ -5,6 +6,8 @@ import { Room, DEFAULT_ROOM } from './Room';
 import { Agent3D } from './Agent3D';
 import { ConversationLayer } from './ConversationBubble';
 import type { AgentState } from '../types';
+
+const MemoizedAgent3D = React.memo(Agent3D);
 
 // Default agent positions for demo / when server hasn't sent state
 const DEFAULT_AGENTS: Record<string, AgentState> = {
@@ -104,6 +107,8 @@ export function Scene() {
           far: 200,
         }}
         shadows
+        dpr={[1, 2]}
+        performance={{ min: 0.5 }}
         gl={{ antialias: true, alpha: false }}
         style={{ background: '#1a1a2e' }}
       >
@@ -114,8 +119,8 @@ export function Scene() {
           intensity={0.8}
           color="#ffffff"
           castShadow
-          shadow-mapSize-width={2048}
-          shadow-mapSize-height={2048}
+          shadow-mapSize-width={1024}
+          shadow-mapSize-height={1024}
           shadow-camera-far={50}
           shadow-camera-left={-20}
           shadow-camera-right={20}
@@ -132,7 +137,7 @@ export function Scene() {
 
         {/* Agent avatars */}
         {Object.values(agents).map((agent) => (
-          <Agent3D key={agent.id} agent={agent} />
+          <MemoizedAgent3D key={agent.id} agent={agent} />
         ))}
 
         {/* Inter-agent conversation bubbles */}

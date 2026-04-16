@@ -3,7 +3,7 @@
  * positioned between the two agents in 3D space.
  */
 
-import { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { Html } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import type { AgentConversation, AgentState } from '../types';
@@ -14,7 +14,7 @@ interface ConversationBubbleProps {
   agents: Record<string, AgentState>;
 }
 
-export function ConversationBubble({ conversation, agents }: ConversationBubbleProps) {
+export const ConversationBubble = React.memo(function ConversationBubble({ conversation, agents }: ConversationBubbleProps) {
   const [visible, setVisible] = useState(true);
   const [opacity, setOpacity] = useState(1);
   const age = useRef(0);
@@ -77,7 +77,7 @@ export function ConversationBubble({ conversation, agents }: ConversationBubbleP
       </Html>
     </group>
   );
-}
+});
 
 /**
  * ConversationLayer — Renders all active inter-agent conversations.
@@ -87,7 +87,7 @@ interface ConversationLayerProps {
   agents: Record<string, AgentState>;
 }
 
-export function ConversationLayer({ conversations, agents }: ConversationLayerProps) {
+export const ConversationLayer = React.memo(function ConversationLayer({ conversations, agents }: ConversationLayerProps) {
   // Only show recent conversations (last 10 seconds)
   const [active, setActive] = useState<AgentConversation[]>([]);
 
@@ -104,4 +104,4 @@ export function ConversationLayer({ conversations, agents }: ConversationLayerPr
       ))}
     </>
   );
-}
+});

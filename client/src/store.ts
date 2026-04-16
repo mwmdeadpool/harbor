@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import type { WorldState, ChatMessage, AgentState, AgentConversation } from './types';
 
+export type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'disconnected';
+
 interface HarborStore {
   // Auth
   token: string | null;
@@ -29,6 +31,8 @@ interface HarborStore {
   // Connection
   connected: boolean;
   setConnected: (connected: boolean) => void;
+  connectionStatus: ConnectionStatus;
+  setConnectionStatus: (status: ConnectionStatus) => void;
 }
 
 const STORAGE_KEY = 'harbor_token';
@@ -62,7 +66,7 @@ export const useStore = create<HarborStore>((set) => ({
   },
   logout: () => {
     saveToken(null);
-    set({ token: null, worldState: null, chatMessages: [], connected: false });
+    set({ token: null, worldState: null, chatMessages: [], connected: false, connectionStatus: 'disconnected' as ConnectionStatus });
   },
 
   // World
@@ -108,4 +112,6 @@ export const useStore = create<HarborStore>((set) => ({
   // Connection
   connected: false,
   setConnected: (connected: boolean) => set({ connected }),
+  connectionStatus: 'disconnected' as ConnectionStatus,
+  setConnectionStatus: (connectionStatus: ConnectionStatus) => set({ connectionStatus }),
 }));

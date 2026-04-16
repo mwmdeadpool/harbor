@@ -690,14 +690,14 @@ POST /api/auth/refresh — Refresh expiring token
 
 **Goal:** Production-quality experience, robust under real use.
 
-- [ ] Improved room aesthetics (lighting, materials, objects)
-- [ ] Smooth animation transitions
-- [ ] State persistence hardening (recovery testing, snapshot compaction)
-- [ ] Graceful degradation testing (kill each subsystem, verify fallbacks)
-- [ ] Performance profiling and optimization
-- [ ] Custom VRM avatars for each agent (beyond RPM defaults)
-- [ ] Viseme-based lip sync upgrade (if amplitude proves insufficient)
-- [ ] Security audit (auth, CSRF, origin checks, capability enforcement)
+- [x] Improved room aesthetics (lighting, materials, objects)
+- [x] Smooth animation transitions
+- [x] State persistence hardening (recovery testing, snapshot compaction)
+- [x] Graceful degradation testing (kill each subsystem, verify fallbacks)
+- [x] Performance profiling and optimization
+- [x] Custom VRM avatars for each agent (beyond RPM defaults)
+- [x] Viseme-based lip sync upgrade (if amplitude proves insufficient)
+- [x] Security audit (auth, CSRF, origin checks, capability enforcement)
 
 **Deliverable:** Robust Harbor deployment. Survives restarts, component failures. Looks and feels polished.
 

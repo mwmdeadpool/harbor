@@ -11,11 +11,14 @@ function detectMimeType(): string | null {
 
 interface UseVoiceOptions {
   onTranscription?: (text: string) => void;
+  /** Called when TTS playback fails, with the text that was meant to be spoken */
+  onTTSFallback?: (text: string) => void;
 }
 
-export function useVoice({ onTranscription }: UseVoiceOptions = {}) {
+export function useVoice({ onTranscription, onTTSFallback }: UseVoiceOptions = {}) {
   const [state, setState] = useState<VoiceState>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [micDisabled, setMicDisabled] = useState(false);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -30,6 +33,12 @@ export function useVoice({ onTranscription }: UseVoiceOptions = {}) {
   const startRecording = useCallback(async () => {
     if (!isSupported) {
       setError('Voice recording is not supported in this browser');
+      setMicDisabled(true);
+      return;
+    }
+
+    if (micDisabled) {
+      setError('Microphone access denied — use text input instead');
       return;
     }
 
@@ -55,17 +64,32 @@ export function useVoice({ onTranscription }: UseVoiceOptions = {}) {
         }
       };
 
+      recorder.onerror = () => {
+        setError('Recording error — use text input instead');
+        setMicDisabled(true);
+        setState('idle');
+        // Clean up the stream
+        if (streamRef.current) {
+          streamRef.current.getTracks().forEach((t) => t.stop());
+          streamRef.current = null;
+        }
+      };
+
       recorder.start();
       setState('recording');
     } catch (err) {
       if (err instanceof DOMException && err.name === 'NotAllowedError') {
-        setError('Microphone permission denied');
+        setError('Microphone permission denied — text-only mode');
+        setMicDisabled(true);
+      } else if (err instanceof DOMException && err.name === 'NotFoundError') {
+        setError('No microphone found — text-only mode');
+        setMicDisabled(true);
       } else {
         setError('Failed to start recording');
       }
       setState('idle');
     }
-  }, [isSupported]);
+  }, [isSupported, micDisabled]);
 
   const stopRecording = useCallback(async (): Promise<Blob | null> => {
     const recorder = mediaRecorderRef.current;
@@ -76,21 +100,32 @@ export function useVoice({ onTranscription }: UseVoiceOptions = {}) {
 
     return new Promise<Blob | null>((resolve) => {
       recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, {
-          type: mimeTypeRef.current || 'audio/webm',
-        });
-        chunksRef.current = [];
+        try {
+          const blob = new Blob(chunksRef.current, {
+            type: mimeTypeRef.current || 'audio/webm',
+          });
+          chunksRef.current = [];
 
-        // Stop all tracks
-        if (streamRef.current) {
-          streamRef.current.getTracks().forEach((t) => t.stop());
-          streamRef.current = null;
+          // Stop all tracks
+          if (streamRef.current) {
+            streamRef.current.getTracks().forEach((t) => t.stop());
+            streamRef.current = null;
+          }
+
+          resolve(blob);
+        } catch {
+          // Blob creation failed — shouldn't happen but be safe
+          resolve(null);
         }
-
-        resolve(blob);
       };
 
-      recorder.stop();
+      try {
+        recorder.stop();
+      } catch {
+        // Recorder already stopped or in bad state
+        setState('idle');
+        resolve(null);
+      }
     });
   }, []);
 
@@ -135,5 +170,42 @@ export function useVoice({ onTranscription }: UseVoiceOptions = {}) {
     [onTranscription],
   );
 
-  return { state, startRecording, stopRecording, sendAudio, error, isSupported };
+  /**
+   * Play TTS audio. If playback fails for any reason, invokes the
+   * onTTSFallback callback with the text so the UI can show it instead.
+   * Never throws.
+   */
+  const playTTS = useCallback(
+    async (audioUrl: string, fallbackText?: string) => {
+      try {
+        setState('playing');
+        const audio = new Audio(audioUrl);
+
+        await new Promise<void>((resolve, reject) => {
+          audio.onended = () => resolve();
+          audio.onerror = () => reject(new Error('Audio playback failed'));
+          audio.play().catch(reject);
+        });
+
+        setState('idle');
+      } catch {
+        setState('idle');
+        if (fallbackText && onTTSFallback) {
+          onTTSFallback(fallbackText);
+        }
+      }
+    },
+    [onTTSFallback],
+  );
+
+  return {
+    state,
+    startRecording,
+    stopRecording,
+    sendAudio,
+    playTTS,
+    error,
+    isSupported: isSupported && !micDisabled,
+    micDisabled,
+  };
 }
