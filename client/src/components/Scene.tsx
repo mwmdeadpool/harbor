@@ -5,6 +5,11 @@ import { useStore } from '../store';
 import { Room, DEFAULT_ROOM } from './Room';
 import { Agent3D } from './Agent3D';
 import { ConversationLayer } from './ConversationBubble';
+import { SystemAmbience } from './SystemAmbience';
+import { CameraWall } from './CameraPanel3D';
+import { JournalWall } from './JournalWall';
+import { MTGTable } from './MTGTable';
+import { AgentWorkbenches } from './AgentWorkbench';
 import type { AgentState } from '../types';
 
 const MemoizedAgent3D = React.memo(Agent3D);
@@ -112,28 +117,20 @@ export function Scene() {
         gl={{ antialias: true, alpha: false }}
         style={{ background: '#1a1a2e' }}
       >
-        {/* Lighting */}
-        <ambientLight intensity={0.4} color="#8888cc" />
-        <directionalLight
-          position={[10, 15, 8]}
-          intensity={0.8}
-          color="#ffffff"
-          castShadow
-          shadow-mapSize-width={1024}
-          shadow-mapSize-height={1024}
-          shadow-camera-far={50}
-          shadow-camera-left={-20}
-          shadow-camera-right={20}
-          shadow-camera-top={20}
-          shadow-camera-bottom={-20}
-        />
-        <directionalLight position={[-5, 8, -5]} intensity={0.2} color="#6644aa" />
+        {/* System-state ambience (replaces static lights — health-driven color) */}
+        <SystemAmbience />
 
         {/* Fog for depth */}
         <fog attach="fog" args={['#1a1a2e', 25, 60]} />
 
         {/* Room geometry */}
         <Room config={room} />
+
+        {/* Phase 5 — workspace furniture */}
+        <CameraWall />
+        <JournalWall />
+        <MTGTable position={[10, 0, 8]} />
+        <AgentWorkbenches />
 
         {/* Agent avatars */}
         {Object.values(agents).map((agent) => (
