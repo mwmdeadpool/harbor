@@ -102,10 +102,10 @@ interface WallProps {
 }
 
 const DEFAULT_CAMERAS: Array<{ id: string; label: string }> = [
-  { id: 'driveway', label: 'Driveway' },
-  { id: 'front_door', label: 'Front Door' },
-  { id: 'backyard', label: 'Backyard' },
-  { id: 'doorbell', label: 'Doorbell' },
+  { id: 'front_door_bell', label: 'Front Door' },
+  { id: 'pool_camera', label: 'Pool' },
+  { id: 'play_room_camera', label: 'Play Room' },
+  { id: 'living_room_camera', label: 'Living Room' },
 ];
 
 export function CameraWall({ cameras = DEFAULT_CAMERAS }: WallProps) {
