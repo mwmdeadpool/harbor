@@ -51,21 +51,25 @@ export function initDb(): Database.Database {
       password_hash TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'user'
     );
+  `);
 
+  // Migration: add sequence column to state_snapshots if missing.
+  // MUST run before any index that references the sequence column — older DBs
+  // may have state_snapshots without the column (pre-migration), and a
+  // CREATE INDEX on a missing column aborts initDb.
+  const cols = db.prepare('PRAGMA table_info(state_snapshots)').all() as Array<{ name: string }>;
+  const hasSeqCol = cols.some((c) => c.name === 'sequence');
+  if (!hasSeqCol) {
+    db.exec('ALTER TABLE state_snapshots ADD COLUMN sequence INTEGER NOT NULL DEFAULT 0');
+    log.info('Migrated state_snapshots: added sequence column');
+  }
+
+  db.exec(`
     CREATE INDEX IF NOT EXISTS idx_events_sequence ON events(sequence);
     CREATE INDEX IF NOT EXISTS idx_events_type ON events(type);
     CREATE INDEX IF NOT EXISTS idx_events_agent_id ON events(agent_id);
     CREATE INDEX IF NOT EXISTS idx_snapshots_sequence ON state_snapshots(sequence);
   `);
-
-  // Migration: add sequence column to state_snapshots if missing
-  const cols = db.prepare('PRAGMA table_info(state_snapshots)').all() as Array<{ name: string }>;
-  const hasSeqCol = cols.some((c) => c.name === 'sequence');
-  if (!hasSeqCol) {
-    db.exec('ALTER TABLE state_snapshots ADD COLUMN sequence INTEGER NOT NULL DEFAULT 0');
-    db.exec('CREATE INDEX IF NOT EXISTS idx_snapshots_sequence ON state_snapshots(sequence)');
-    log.info('Migrated state_snapshots: added sequence column');
-  }
 
   log.info('Database initialized');
   return db;

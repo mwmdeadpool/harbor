@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import type express from 'express';
 import pino from 'pino';
@@ -11,7 +12,7 @@ const HA_TOKEN = (() => {
   const file = process.env.HA_TOKEN_FILE;
   if (!file) return '';
   try {
-    return require('node:fs').readFileSync(file, 'utf8').trim();
+    return readFileSync(file, 'utf8').trim();
   } catch {
     return '';
   }
