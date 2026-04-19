@@ -23,6 +23,13 @@ import { PolicyEngine } from './policy.js';
 import { BroadcastManager } from './broadcast.js';
 import { BehaviorEngine } from './behavior.js';
 import { generateAgentToken, generateAllAgentTokens, listAgentProfiles } from './capabilities.js';
+import {
+  cameraProxy,
+  journalEntries,
+  systemHealth,
+  makeAgentTasks,
+  scryfallSearch,
+} from './panels.js';
 import type { EventType } from './types.js';
 import { DEFAULT_AGENTS } from './types.js';
 
@@ -520,6 +527,18 @@ app.post(
     res.json({ ok: true, sequence: event.sequence });
   },
 );
+
+// --- Phase 5 panel routes ---
+
+app.get('/api/panel/camera', requireAuth, cameraProxy);
+app.get('/api/panel/journal', requireAuth, journalEntries);
+app.get('/api/panel/health', requireAuth, systemHealth);
+app.get(
+  '/api/panel/tasks',
+  requireAuth,
+  makeAgentTasks(() => stateEngine.getAgentRoster()),
+);
+app.get('/api/panel/scryfall', requireAuth, scryfallSearch);
 
 // SPA fallback — serve index.html for unmatched routes
 app.get('*', (_req, res) => {
