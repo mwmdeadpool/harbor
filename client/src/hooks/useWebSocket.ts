@@ -230,10 +230,13 @@ export function useWebSocket() {
     logout,
   ]);
 
-  const send = useCallback((type: string, data: unknown = {}) => {
+  const send = useCallback((type: string, data: unknown = {}): boolean => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ type, data }));
+      return true;
     }
+    console.warn('[harbor] dropped outbound message — WebSocket not open', { type });
+    return false;
   }, []);
 
   useEffect(() => {
@@ -241,8 +244,33 @@ export function useWebSocket() {
     attemptRef.current = 0;
     connect();
 
+    // When the tab regains focus, verify the socket is alive. Mobile browsers
+    // and desktop tab-discard routinely kill a backgrounded WS without firing
+    // an onclose the client will see until it tries to send.
+    function checkAlive() {
+      if (!mountedRef.current || !token) return;
+      const ws = wsRef.current;
+      if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+        if (reconnectTimer.current) {
+          clearTimeout(reconnectTimer.current);
+          reconnectTimer.current = null;
+        }
+        attemptRef.current = 0;
+        connect();
+      }
+    }
+    function onVisibility() {
+      if (document.visibilityState === 'visible') checkAlive();
+    }
+    window.addEventListener('focus', checkAlive);
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('online', checkAlive);
+
     return () => {
       mountedRef.current = false;
+      window.removeEventListener('focus', checkAlive);
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('online', checkAlive);
       if (reconnectTimer.current) {
         clearTimeout(reconnectTimer.current);
       }
@@ -251,7 +279,7 @@ export function useWebSocket() {
         wsRef.current = null;
       }
     };
-  }, [connect]);
+  }, [connect, token]);
 
   return { send };
 }

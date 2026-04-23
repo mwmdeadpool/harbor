@@ -10,7 +10,7 @@ import { PushToTalk } from './components/PushToTalk';
 
 function AuthenticatedApp() {
   const { send } = useWebSocket();
-  const { playAgentAudio, ensureContext } = useAudio();
+  const { playAgentAudio, playAgentText, ensureContext } = useAudio();
   const volume = useStore((s) => s.volume);
 
   // Initialize audio context on first user interaction
@@ -33,14 +33,55 @@ function AuthenticatedApp() {
     function handleWsMessage(event: MessageEvent) {
       try {
         const msg = JSON.parse(event.data);
-        if (msg.type === 'agent:speak' && msg.data?.audioUrl && msg.data?.agentId) {
-          const worldState = useStore.getState().worldState;
-          const agent = worldState?.agents[msg.data.agentId];
+        const worldState = useStore.getState().worldState;
+        console.log('[harbor:audio] ws handler received', {
+          outerType: msg.type,
+          innerType: msg.data?.type,
+          agentId: msg.data?.agentId,
+          hasAudioUrl: !!msg.data?.data?.audioUrl,
+          hasText: !!msg.data?.data?.text,
+        });
+
+        // Agent speaks to user / room
+        if (msg.type === 'event' && msg.data?.type === 'agent:speak') {
+          const agentId = msg.data.agentId as string | undefined;
+          const data = msg.data.data as { audioUrl?: string; text?: string } | undefined;
+          if (!agentId) return;
+          const agent = worldState?.agents[agentId];
           const position = agent?.position ?? { x: 0, y: 1, z: 0 };
-          playAgentAudio(msg.data.agentId, msg.data.audioUrl, position);
+          if (data?.audioUrl) {
+            playAgentAudio(agentId, data.audioUrl, position);
+          } else if (data?.text) {
+            playAgentText(agentId, data.text, position);
+          }
+          return;
         }
-      } catch {
-        // ignore
+
+        // Inter-agent dialogue — speaker is fromAgent
+        if (msg.type === 'event' && msg.data?.type === 'agent:conversation') {
+          const data = msg.data.data as { fromAgent?: string; text?: string } | undefined;
+          const fromAgent = data?.fromAgent;
+          const text = data?.text;
+          if (!fromAgent || !text) return;
+          const agent = worldState?.agents[fromAgent];
+          const position = agent?.position ?? { x: 0, y: 1, z: 0 };
+          playAgentText(fromAgent, text, position);
+          return;
+        }
+
+        // Legacy flat shape (defensive)
+        if (msg.type === 'agent:speak' && msg.data?.agentId) {
+          const agentId = msg.data.agentId as string;
+          const agent = worldState?.agents[agentId];
+          const position = agent?.position ?? { x: 0, y: 1, z: 0 };
+          if (msg.data.audioUrl) {
+            playAgentAudio(agentId, msg.data.audioUrl, position);
+          } else if (msg.data.text) {
+            playAgentText(agentId, msg.data.text, position);
+          }
+        }
+      } catch (err) {
+        console.warn('[harbor:audio] ws handler threw', err);
       }
     }
 
@@ -51,7 +92,7 @@ function AuthenticatedApp() {
     return () => {
       window.removeEventListener('harbor:ws:message', handleWsMessage as EventListener);
     };
-  }, [playAgentAudio, volume]);
+  }, [playAgentAudio, playAgentText, volume]);
 
   const handleChatSend = useCallback(
     (text: string) => {
