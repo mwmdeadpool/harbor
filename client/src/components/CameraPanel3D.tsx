@@ -29,7 +29,6 @@ export const CameraPanel3D = React.memo(function CameraPanel3D({
   useEffect(() => {
     if (!url) return;
     const img = new Image();
-    img.crossOrigin = 'anonymous';
     img.onload = () => {
       const tex = new THREE.Texture(img);
       tex.colorSpace = THREE.SRGBColorSpace;

@@ -19,6 +19,8 @@ import { DEFAULT_AGENTS, DEFAULT_ROOM_CONFIG } from './types.js';
 const log = pino({ name: 'harbor:state' });
 
 const SNAPSHOT_INTERVAL = 100; // Save a snapshot every N events
+const WALK_SPEED = 2.0; // units per second — used to auto-clear walking animation
+const MIN_WALK_DISTANCE = 0.5; // distance below this = teleport/nudge, no walk anim
 
 export class StateEngine {
   private state: WorldState;
@@ -199,10 +201,44 @@ export class StateEngine {
       case 'agent:move': {
         if (!agentId || !state.agents[agentId]) break;
         const agent = state.agents[agentId];
-        if (data.position) agent.position = data.position as Position;
-        if (data.rotation !== undefined) agent.rotation = data.rotation as number;
+        const prev = agent.position;
+        const next = (data.position as Position | undefined) ?? prev;
+
+        const dx = next.x - prev.x;
+        const dz = next.z - prev.z;
+        const dist = Math.sqrt(dx * dx + dz * dz);
+
+        agent.position = next;
+
+        // Auto-face direction of travel unless caller specified a rotation
+        if (data.rotation !== undefined) {
+          agent.rotation = data.rotation as number;
+        } else if (dist >= MIN_WALK_DISTANCE) {
+          agent.rotation = Math.atan2(dx, dz);
+        }
+
         if (data.zone) agent.zone = data.zone as string;
         agent.lastActive = event.timestamp;
+
+        // Walking animation: live state only, skipped on replay
+        if (!target && dist >= MIN_WALK_DISTANCE) {
+          const walkDurationMs = Math.max(400, (dist / WALK_SPEED) * 1000);
+          const explicitAnim = data.animation as string | undefined;
+          agent.animation = explicitAnim || 'walking';
+          const wasActivity = agent.activity;
+          setTimeout(() => {
+            const live = this.state.agents[agentId];
+            if (!live) return;
+            // Only clear if still in this same walking state — don't stomp
+            // a speak/gesture that fired mid-travel.
+            if (live.animation === (explicitAnim || 'walking')) {
+              live.animation = 'idle';
+            }
+            if (live.activity === wasActivity && wasActivity !== 'talking') {
+              // leave activity alone; walking doesn't change the activity field
+            }
+          }, walkDurationMs);
+        }
         break;
       }
 
@@ -217,12 +253,16 @@ export class StateEngine {
         // Only set timeouts for live state, not during replay
         if (!target) {
           setTimeout(() => {
-            if (this.state.agents[agentId]) {
-              this.state.agents[agentId].speaking = false;
-              if (this.state.agents[agentId].activity === 'talking') {
-                this.state.agents[agentId].activity = 'idle';
-                this.state.agents[agentId].animation = 'idle';
-              }
+            const live = this.state.agents[agentId];
+            if (!live) return;
+            live.speaking = false;
+            if (live.activity === 'talking') {
+              live.activity = 'idle';
+            }
+            // Drop 'talking' animation if nothing else claimed it — a status
+            // step mid-speech can change activity but leave the mouth flapping.
+            if (live.animation === 'talking') {
+              live.animation = 'idle';
             }
           }, 5000);
         }

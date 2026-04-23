@@ -68,9 +68,26 @@ const styles = {
 
 export function ChatOverlay({ onSend }: ChatOverlayProps) {
   const messages = useStore((s) => s.chatMessages);
+  const connectionStatus = useStore((s) => s.connectionStatus);
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+
+  const statusColor =
+    connectionStatus === 'connected'
+      ? '#4caf50'
+      : connectionStatus === 'connecting' || connectionStatus === 'reconnecting'
+        ? '#f0b040'
+        : '#d04040';
+  const statusLabel =
+    connectionStatus === 'connected'
+      ? 'Live'
+      : connectionStatus === 'connecting'
+        ? 'Connecting…'
+        : connectionStatus === 'reconnecting'
+          ? 'Reconnecting…'
+          : 'Offline';
+  const disabled = connectionStatus !== 'connected';
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -100,7 +117,41 @@ export function ChatOverlay({ onSend }: ChatOverlayProps) {
 
   return (
     <div style={styles.container}>
-      <div style={styles.header}>Chat</div>
+      <div
+        style={{
+          ...styles.header,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '8px',
+        }}
+      >
+        <span>Chat</span>
+        <span
+          title={`WebSocket: ${connectionStatus}`}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            fontSize: '10px',
+            color: statusColor,
+            textTransform: 'none',
+            letterSpacing: '0.4px',
+            fontWeight: 500,
+          }}
+        >
+          <span
+            style={{
+              width: '7px',
+              height: '7px',
+              borderRadius: '50%',
+              background: statusColor,
+              boxShadow: `0 0 6px ${statusColor}`,
+            }}
+          />
+          {statusLabel}
+        </span>
+      </div>
       <div ref={messagesContainerRef} style={styles.messages}>
         {messages.length === 0 && (
           <div
@@ -172,15 +223,15 @@ export function ChatOverlay({ onSend }: ChatOverlayProps) {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Type a message..."
+          placeholder={disabled ? 'Offline — reconnecting…' : 'Type a message...'}
         />
         <button
           style={{
             ...styles.sendBtn,
-            opacity: input.trim() ? 1 : 0.4,
+            opacity: input.trim() && !disabled ? 1 : 0.4,
           }}
           onClick={handleSend}
-          disabled={!input.trim()}
+          disabled={!input.trim() || disabled}
         >
           Send
         </button>

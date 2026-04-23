@@ -1,6 +1,6 @@
 import React, { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Text, MeshReflectorMaterial, Float, Sparkles } from '@react-three/drei';
+import { Text, Float, Sparkles, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 import type { RoomConfig, Zone } from '../types';
 
@@ -80,28 +80,35 @@ export const DEFAULT_ROOM: RoomConfig = {
   ],
 };
 
-// ── Reflective floor with subtle grid ────────────────────────────────
+// ── Textured wood floor with subtle neon grid overlay ────────────────
 function FloorGrid({ width, depth }: { width: number; depth: number }) {
+  const [diff, nor, rough] = useTexture([
+    '/textures/floor/diff.jpg',
+    '/textures/floor/nor.jpg',
+    '/textures/floor/rough.jpg',
+  ]);
+  useMemo(() => {
+    [diff, nor, rough].forEach((t) => {
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      t.repeat.set(8, 8);
+      t.anisotropy = 8;
+    });
+    diff.colorSpace = THREE.SRGBColorSpace;
+  }, [diff, nor, rough]);
   return (
     <group>
-      {/* Reflective dark floor */}
       <mesh rotation-x={-Math.PI / 2} position={[0, -0.01, 0]} receiveShadow>
         <planeGeometry args={[width, depth]} />
-        <MeshReflectorMaterial
-          mirror={0.35}
-          blur={[300, 100]}
-          resolution={256}
-          mixBlur={0.8}
-          mixStrength={0.5}
-          roughness={0.85}
-          depthScale={0.8}
-          color="#0d0d1a"
-          metalness={0.6}
+        <meshStandardMaterial
+          map={diff}
+          normalMap={nor}
+          roughnessMap={rough}
+          roughness={0.9}
+          metalness={0.05}
         />
       </mesh>
-      {/* Subtle neon grid */}
+      {/* Subtle neon grid — cyberpunk flavor on top of wood */}
       <gridHelper args={[width, width * 2, '#1a1a3a', '#141428']} position={[0, 0.001, 0]} />
-      {/* Brighter accent grid — sparser */}
       <gridHelper args={[width, width / 2, '#2e1e5e', '#2e1e5e']} position={[0, 0.002, 0]} />
     </group>
   );
@@ -139,9 +146,9 @@ function Walls({ width, depth }: { width: number; depth: number }) {
   const wallMaterial = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
-        color: '#1a1a30',
+        color: '#1a1a2c',
         transparent: true,
-        opacity: 0.2,
+        opacity: 0.55,
         side: THREE.DoubleSide,
         metalness: 0.3,
         roughness: 0.7,

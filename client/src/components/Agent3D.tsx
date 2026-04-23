@@ -1,4 +1,4 @@
-import { useRef, useMemo } from 'react';
+import { useRef, useMemo, useState, useLayoutEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Html, Text } from '@react-three/drei';
 import * as THREE from 'three';
@@ -7,6 +7,7 @@ import { getAgentColor } from '../types';
 import { SpeakingIndicator } from './SpeakingIndicator';
 import { AgentMouth } from './AgentMouth';
 import { VRMAvatar } from './VRMAvatar';
+import { GLBAvatar } from './GLBAvatar';
 import { AGENT_AVATARS } from '../config/avatars';
 import type { VisemeWeights } from '../audio/VisemeAnalyzer';
 
@@ -31,16 +32,44 @@ export function Agent3D({ agent }: Agent3DProps) {
   const color = useMemo(() => getAgentColor(agent.name), [agent.name]);
   const baseColor = useMemo(() => new THREE.Color(color).multiplyScalar(0.6), [color]);
 
-  // Resolve VRM avatar URL: prefer agent.avatar, fall back to config map
+  // Resolve VRM avatar URL: prefer agent.avatar, fall back to config map.
+  // Only treat URLs ending in .vrm as real VRM models; server's default
+  // avatars are PNG portraits that the VRM loader can't consume, and
+  // fetching them as VRM yields 404 HTML + NaN geometry bounds.
   const avatarConfig = useMemo(() => AGENT_AVATARS[agent.name.toLowerCase()], [agent.name]);
   const vrmUrl = agent.avatar || avatarConfig?.vrmUrl || '';
-  const hasVRM = vrmUrl.length > 0;
+  const lowerUrl = vrmUrl.toLowerCase();
+  const hasVRM = lowerUrl.endsWith('.vrm');
+  const hasGLB = lowerUrl.endsWith('.glb') || lowerUrl.endsWith('.gltf');
+  const hasModel = hasVRM || hasGLB;
 
-  // Target animation parameters
+  // Client-side walk detection: if we're actively lerping toward a position
+  // that's meaningfully far from where we are, treat the agent as walking
+  // even if the server didn't flip agent.animation. This keeps the VRM
+  // procedural walk (arm swing + spine lean) firing during /harbor/move
+  // sequences, which only emit agent:move deltas without an animation state.
+  const [isMoving, setIsMoving] = useState(false);
+  // When actively moving, force walking animation regardless of current
+  // state — gestures like 'wave' can leave animation sticky on the server
+  // side so we override at the client boundary.
+  const effectiveAnimation = isMoving ? 'walking' : agent.animation;
+
+  // Target animation parameters — derive from the effective animation so
+  // the ambient bob speeds up during auto-detected walks too.
   const animParams = useMemo(
-    () => getActivityAnimation(agent.activity, agent.animation),
-    [agent.activity, agent.animation],
+    () => getActivityAnimation(agent.activity, effectiveAnimation),
+    [agent.activity, effectiveAnimation],
   );
+
+  // Initial position — set ONCE on mount. After this, useFrame owns
+  // position exclusively so lerping isn't stomped by React re-renders
+  // when agent.position changes.
+  useLayoutEffect(() => {
+    if (groupRef.current) {
+      groupRef.current.position.set(agent.position.x, agent.position.y, agent.position.z);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Smooth transition speed — how fast to blend between animation states
   const BLEND_SPEED = 3;
@@ -62,21 +91,46 @@ export function Agent3D({ agent }: Agent3DProps) {
 
     bobOffset.current += delta * currentBobSpeed.current;
 
-    // Position with smooth lerp for movement
+    // Constant-speed walk toward target (matches server's SEQUENCE_WALK_SPEED).
+    // Plain lerp was asymptotic — fast start, slow creep at the end — which
+    // looked like gliding. Constant-speed steps read as actual walking.
+    const WALK_SPEED = 1.8;
     const targetX = agent.position.x;
     const targetZ = agent.position.z;
     const currentX = groupRef.current.position.x;
     const currentZ = groupRef.current.position.z;
-    groupRef.current.position.x = THREE.MathUtils.lerp(currentX, targetX, delta * 3);
-    groupRef.current.position.z = THREE.MathUtils.lerp(currentZ, targetZ, delta * 3);
+    const dx = targetX - currentX;
+    const dz = targetZ - currentZ;
+    const distSq = dx * dx + dz * dz;
+    const dist = Math.sqrt(distSq);
+    if (dist > 0.005) {
+      const step = Math.min(dist, WALK_SPEED * delta);
+      groupRef.current.position.x += (dx / dist) * step;
+      groupRef.current.position.z += (dz / dist) * step;
+    }
     groupRef.current.position.y =
       agent.position.y + Math.sin(bobOffset.current) * currentBobHeight.current;
 
-    // Smooth rotation lerp with shortest-path wrapping
-    if (agent.rotation !== undefined) {
+    // Flip walking state at ≥0.05u gap so the VRM procedural walk kicks in.
+    const shouldMove = distSq > 0.05 * 0.05;
+    if (shouldMove !== isMoving) setIsMoving(shouldMove);
+
+    // Auto-face walk direction when moving meaningfully. Server doesn't
+    // always send rotation with move deltas, so derive from velocity.
+    if (shouldMove && (Math.abs(dx) > 0.01 || Math.abs(dz) > 0.01)) {
+      const targetFacing = Math.atan2(dx, dz);
+      let rot = groupRef.current.rotation.y;
+      let diff = targetFacing - rot;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      groupRef.current.rotation.y = rot + diff * Math.min(1, delta * 6);
+    }
+
+    // Smooth rotation lerp with shortest-path wrapping. Only apply when we
+    // aren't auto-facing walk direction above, to avoid double-driving.
+    if (agent.rotation !== undefined && !shouldMove) {
       const targetRot = agent.rotation;
       let currentRot = groupRef.current.rotation.y;
-      // Wrap to find shortest rotation path
       let diff = targetRot - currentRot;
       while (diff > Math.PI) diff -= Math.PI * 2;
       while (diff < -Math.PI) diff += Math.PI * 2;
@@ -84,7 +138,11 @@ export function Agent3D({ agent }: Agent3DProps) {
     }
 
     // Calculate target body rotations based on activity (then blend below)
-    if (agent.speaking || agent.activity === 'talking') {
+    if (effectiveAnimation === 'walking') {
+      // Slight forward lean + gentle side-to-side torso sway
+      targetBodyRotX.current = 0.08;
+      targetBodyRotZ.current = Math.sin(bobOffset.current * 0.5) * 0.03;
+    } else if (agent.speaking || agent.activity === 'talking') {
       targetBodyRotZ.current = Math.sin(bobOffset.current * 2.5) * 0.04;
       targetBodyRotX.current = 0;
     } else if (agent.activity === 'working' || agent.activity === 'coding') {
@@ -93,10 +151,10 @@ export function Agent3D({ agent }: Agent3DProps) {
     } else if (agent.activity === 'thinking') {
       targetBodyRotZ.current = Math.sin(bobOffset.current * 0.5) * 0.03;
       targetBodyRotX.current = Math.sin(bobOffset.current * 0.3) * 0.02;
-    } else if (agent.animation === 'listening') {
+    } else if (effectiveAnimation === 'listening') {
       targetBodyRotX.current = -0.05;
       targetBodyRotZ.current = 0;
-    } else if (agent.animation === 'wave') {
+    } else if (effectiveAnimation === 'wave') {
       targetBodyRotZ.current = Math.sin(bobOffset.current * 4) * 0.06;
       targetBodyRotX.current = 0;
     } else {
@@ -157,12 +215,17 @@ export function Agent3D({ agent }: Agent3DProps) {
     : { aa: 0, oh: 0, ee: 0, ss: 0, silence: 1 };
 
   return (
-    <group ref={groupRef} position={[agent.position.x, agent.position.y, agent.position.z]}>
+    <group ref={groupRef}>
       <group ref={bodyRef}>
         {hasVRM ? (
           /* VRM avatar model */
           <group scale={avatarConfig?.scale ?? 1.0} position={avatarConfig?.offset ?? [0, 0, 0]}>
-            <VRMAvatar url={vrmUrl} animation={agent.animation} speaking={agent.speaking} />
+            <VRMAvatar url={vrmUrl} animation={effectiveAnimation} speaking={agent.speaking} />
+          </group>
+        ) : hasGLB ? (
+          /* GLB / GLTF avatar model (no humanoid rig, no viseme morphs) */
+          <group scale={avatarConfig?.scale ?? 1.0} position={avatarConfig?.offset ?? [0, 0, 0]}>
+            <GLBAvatar url={vrmUrl} animation={effectiveAnimation} speaking={agent.speaking} />
           </group>
         ) : (
           <>
@@ -199,27 +262,31 @@ export function Agent3D({ agent }: Agent3DProps) {
         <meshBasicMaterial color={color} transparent opacity={0.15} side={THREE.BackSide} />
       </mesh>
 
-      {/* Eyes */}
-      <mesh position={[-0.08, 1.38, 0.19]}>
-        <sphereGeometry args={[0.035, 8, 8]} />
-        <meshBasicMaterial color="#ffffff" />
-      </mesh>
-      <mesh position={[0.08, 1.38, 0.19]}>
-        <sphereGeometry args={[0.035, 8, 8]} />
-        <meshBasicMaterial color="#ffffff" />
-      </mesh>
-      {/* Pupils */}
-      <mesh position={[-0.08, 1.38, 0.22]}>
-        <sphereGeometry args={[0.018, 8, 8]} />
-        <meshBasicMaterial color="#111111" />
-      </mesh>
-      <mesh position={[0.08, 1.38, 0.22]}>
-        <sphereGeometry args={[0.018, 8, 8]} />
-        <meshBasicMaterial color="#111111" />
-      </mesh>
+      {/* Eyes + pupils — only for the geometric fallback. VRM and GLB have
+          their own baked-in eyes; drawing spheres on top = googly. */}
+      {!hasModel && (
+        <>
+          <mesh position={[-0.08, 1.38, 0.19]}>
+            <sphereGeometry args={[0.035, 8, 8]} />
+            <meshBasicMaterial color="#ffffff" />
+          </mesh>
+          <mesh position={[0.08, 1.38, 0.19]}>
+            <sphereGeometry args={[0.035, 8, 8]} />
+            <meshBasicMaterial color="#ffffff" />
+          </mesh>
+          <mesh position={[-0.08, 1.38, 0.22]}>
+            <sphereGeometry args={[0.018, 8, 8]} />
+            <meshBasicMaterial color="#111111" />
+          </mesh>
+          <mesh position={[0.08, 1.38, 0.22]}>
+            <sphereGeometry args={[0.018, 8, 8]} />
+            <meshBasicMaterial color="#111111" />
+          </mesh>
+        </>
+      )}
 
-      {/* Mouth — viseme-driven lip sync */}
-      {!hasVRM && <AgentMouth visemes={defaultVisemes} />}
+      {/* Mouth — viseme-driven lip sync (only on geometric fallback; VRM/GLB handle their own) */}
+      {!hasModel && <AgentMouth visemes={defaultVisemes} />}
 
       {/* Name label */}
       <Text
@@ -275,6 +342,7 @@ interface ActivityAnimParams {
 }
 
 function getActivityAnimation(activity: string, animation: string): ActivityAnimParams {
+  if (animation === 'walking') return { bobSpeed: 4.5, bobHeight: 0.035 };
   if (animation === 'wave') return { bobSpeed: 3, bobHeight: 0.08 };
   if (animation === 'listening') return { bobSpeed: 1.0, bobHeight: 0.02 };
 
@@ -296,6 +364,7 @@ function getActivityAnimation(activity: string, animation: string): ActivityAnim
 }
 
 function getActivityIcon(activity: string, animation: string): string {
+  if (animation === 'walking') return '\u{1F6B6}';
   if (animation === 'wave') return '\u{1F44B}';
   if (animation === 'listening') return '\u{1F442}';
 

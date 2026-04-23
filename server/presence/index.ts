@@ -292,6 +292,17 @@ const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 const clientDist = path.resolve(__dirname, '../../../client/dist');
 app.use(express.static(clientDist));
 
+// Serve VRM avatar files from server/public/avatars
+const avatarDir = path.resolve(__dirname, '../../public/avatars');
+app.use(
+  '/avatars',
+  express.static(avatarDir, {
+    setHeaders: (res) => {
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+    },
+  }),
+);
+
 // Proxy /media requests to Media Service (port 3334) in production
 const MEDIA_SERVICE_URL = process.env.HARBOR_MEDIA_URL || 'http://localhost:3334';
 app.use('/media', (req, res) => {
