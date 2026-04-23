@@ -21,8 +21,18 @@
 
 - **animations/margot-*.vrma** — Mixamo source motions, retargeted to VRM humanoid and exported as VRMA
   - Source: Adobe Mixamo (https://www.mixamo.com/)
+  - Retrieved from public Mixamo FBX mirror: `S-N-D-R/UnityMixamoLibrary` (GitHub)
   - License: Mixamo free use for commercial and non-commercial projects (account required)
-  - Conversion pipeline: Mixamo FBX -> Blender (`VRM Add-on for Blender`) -> VRMA export
+  - Conversion pipeline: Mixamo FBX -> FBX2glTF -> VRMA (`tk256ailab/fbx2vrma-converter`, adjusted for non-prefixed Mixamo bone names)
+  - Specific source clips:
+    - `idle_7.fbx` -> `margot-idle.vrma`
+    - `walk_13.fbx` -> `margot-walk.vrma`
+    - `talking_3.fbx` -> `margot-talk.vrma`
+    - `wave_1.fbx` -> `margot-wave.vrma`
+    - `typing.fbx` -> `margot-typing.vrma`
+    - `sitting_idle.fbx` -> `margot-sit-idle.vrma`
+    - `nod_1.fbx` -> `margot-nod.vrma`
+    - `thumbs_up_big.fbx` -> `margot-thumbs-up.vrma`
   - Expected clip names:
     - `margot-idle.vrma`
     - `margot-walk.vrma`
