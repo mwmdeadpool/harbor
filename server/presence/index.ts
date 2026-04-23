@@ -242,7 +242,7 @@ app.use((_req, res, next) => {
   res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   res.setHeader(
     'Content-Security-Policy',
-    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws: wss:; font-src 'self'; object-src 'none'; frame-ancestors 'none'",
+    "default-src 'self'; script-src 'self' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws: wss: https://cdn.jsdelivr.net; font-src 'self' data: https://cdn.jsdelivr.net; object-src 'none'; frame-ancestors 'none'",
   );
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(self), geolocation=()');
@@ -291,6 +291,17 @@ app.use(express.json({ limit: '16kb' }));
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 const clientDist = path.resolve(__dirname, '../../../client/dist');
 app.use(express.static(clientDist));
+
+// Serve VRM avatar files from server/public/avatars
+const avatarDir = path.resolve(__dirname, '../../public/avatars');
+app.use(
+  '/avatars',
+  express.static(avatarDir, {
+    setHeaders: (res) => {
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+    },
+  }),
+);
 
 // Proxy /media requests to Media Service (port 3334) in production
 const MEDIA_SERVICE_URL = process.env.HARBOR_MEDIA_URL || 'http://localhost:3334';

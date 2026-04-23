@@ -138,7 +138,7 @@ export const DEFAULT_AGENTS: AgentState[] = [
   {
     id: 'margot',
     name: 'Margot',
-    avatar: 'margot.png',
+    avatar: '/avatars/margot.vrm',
     position: { x: 0, y: 0, z: 0 },
     rotation: 0,
     zone: 'margot-desk',
@@ -151,7 +151,7 @@ export const DEFAULT_AGENTS: AgentState[] = [
   {
     id: 'bud',
     name: 'Bud',
-    avatar: 'bud.png',
+    avatar: '/avatars/bud.glb',
     position: { x: 4, y: 0, z: 0 },
     rotation: 0,
     zone: 'bud-desk',
@@ -164,7 +164,7 @@ export const DEFAULT_AGENTS: AgentState[] = [
   {
     id: 'lou',
     name: 'Lou',
-    avatar: 'lou.png',
+    avatar: '/avatars/lou.glb',
     position: { x: 8, y: 0, z: 0 },
     rotation: 0,
     zone: 'lou-desk',
@@ -177,7 +177,7 @@ export const DEFAULT_AGENTS: AgentState[] = [
   {
     id: 'nygma',
     name: 'Nygma',
-    avatar: 'nygma.png',
+    avatar: '/avatars/nygma.glb',
     position: { x: 0, y: 0, z: 4 },
     rotation: 0,
     zone: 'nygma-desk',
@@ -190,7 +190,7 @@ export const DEFAULT_AGENTS: AgentState[] = [
   {
     id: 'ivy',
     name: 'Ivy',
-    avatar: 'ivy.png',
+    avatar: '/avatars/ivy.glb',
     position: { x: 4, y: 0, z: 4 },
     rotation: 0,
     zone: 'ivy-desk',
@@ -203,7 +203,7 @@ export const DEFAULT_AGENTS: AgentState[] = [
   {
     id: 'harvey',
     name: 'Harvey',
-    avatar: 'harvey.png',
+    avatar: '/avatars/harvey.glb',
     position: { x: 8, y: 0, z: 4 },
     rotation: 0,
     zone: 'harvey-desk',
