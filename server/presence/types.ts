@@ -76,6 +76,36 @@ export interface WorldState {
   room: RoomConfig;
 }
 
+// Multi-step sequence primitives — shared between /harbor/sequence, demo
+// scenarios, and the signal catalog.
+export type SequenceStep =
+  | {
+      type: 'move';
+      to?: string;
+      position?: Position;
+      rotation?: number;
+      zone?: string;
+      animation?: string;
+    }
+  | { type: 'speak'; text: string }
+  | { type: 'gesture'; animation: string; duration?: number }
+  | { type: 'status'; activity?: string; mood?: string; animation?: string }
+  | { type: 'wait'; ms: number };
+
+// Signal bus — external/internal events that agents react to with sequences.
+export interface Signal {
+  source: string;
+  type: string;
+  data?: Record<string, unknown>;
+  timestamp?: number;
+}
+
+export interface SignalReaction {
+  agentId: string;
+  steps: SequenceStep[];
+  cooldownMs?: number;
+}
+
 // Default room layout — grid pattern, each zone ~4 units apart
 export const DEFAULT_ZONES: Zone[] = [
   {
