@@ -703,13 +703,52 @@ POST /api/auth/refresh — Refresh expiring token
 
 ### Phase 5 — Extensions (Post-MVP, Ongoing)
 
+**Movement slice (2026-04-21, shipped):**
+
+- [x] Walk animation + auto-facing on `agent:move`
+- [x] Zone / agent target resolution (`{to: "meeting-room"}` or `{to: "bud"}`)
+- [x] `/harbor/sequence` multi-step chain (move/speak/gesture/status/wait, max 16)
+- [x] `/harbor/demo/:scenario` pre-baked presets (nygma-present, margot-greet, lounge-party)
+- [x] Client walking visuals across all three avatar paths (Agent3D, GLB, VRM)
+
+**Active track — Event-reactive autonomy (A):**
+
+- [x] Signal bus: `POST /harbor/signal` admin endpoint → `resolveSignal` → `runSequence`
+- [x] Per-agent signal→sequence catalog in `server/presence/signals.ts`
+- [x] Starter reactions: `github:pr:opened` (Nygma), `github:ci:failed` (Bud), `user:summon` (any), `agent:handoff` (recipient), `chat:mention` (any)
+- [x] Per-agent+type cooldown map (default 10s, per-reaction override)
+- [x] 202 Accepted on match — upstream webhooks don't hang on the walk/speak duration
+- [ ] Real upstream wiring: GitHub webhook → `/harbor/signal`
+- [ ] Chat channel bridge → `user:summon` / `chat:mention` on NanoClaw mentions
+- [ ] NanoClaw A2A handoff hook → `agent:handoff` signal
+- [ ] Inter-agent conversation physicality (two agents in convo walk toward each other, face, speak)
+
+**Next tracks (roadmap, in order):**
+
+- [ ] **(B) Pathfinding + collision** — navmesh or grid-based routing, agent-agent avoidance, furniture-aware paths; invisible when working, immersion-breaking when not
+- [ ] **(C) Room dressing + affordances** — furniture/props per zone, clickable zones for teleport, in-world speech bubbles, interactable objects, proper sense of *place*
+- [ ] **Villain zones + character-specific idle animations**
+  - [ ] Retrofit Mixamo idle clips onto Ivy and Harvey (currently on procedural upper-arm fallback)
+  - [ ] Define spatial zones per agent (Ivy near plants, Nygma at a whiteboard/question-mark desk, Harvey coin-flipping, Bud/Lou near workstation, Margot floats)
+  - [ ] Character-specific props/set dressing per zone (plants, whiteboard, coin, etc.)
+  - [ ] Position agents at their zone anchors in the deterministic FSM
+- [ ] **In-world screens** (3D panels anchored to zones)
+  - [ ] Panel primitive: textured plane with HTML→canvas or iframe-to-texture pipeline
+  - [ ] Dashboard screens: current task, MTG card image, camera feed, code snippet, live metrics
+  - [ ] Gated by capability token (which agent owns which screen)
+- [ ] **Spatial audio** (Web Audio PannerNode per agent)
+  - [ ] Each agent's TTS routed through a PannerNode positioned at their avatar
+  - [ ] Listener position tracks camera
+  - [ ] Falloff tuned for room size; mono fallback if AudioContext unavailable
+
+**Other post-MVP items:**
+
 - [ ] Camera feed with privacy filter and per-session consent
 - [ ] WebRTC for open-mic low-latency voice
 - [ ] Mobile browser support (LOD system for VRM performance)
 - [ ] Activity replay from event log
 - [ ] Multiple rooms / environments
 - [ ] WebXR / VR headset support
-- [ ] In-world screens (show code, dashboards, camera feeds)
 - [ ] Agent customization of their own space
 - [ ] Visitor mode (others can observe, not interact)
 
