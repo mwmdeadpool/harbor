@@ -3,6 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { VRMLoaderPlugin, VRM, VRMExpressionPresetName } from '@pixiv/three-vrm';
+import { VRMAnimationLoaderPlugin, createVRMAnimationClip } from '@pixiv/three-vrm-animation';
 
 interface VRMAvatarProps {
   url: string;
@@ -10,28 +11,156 @@ interface VRMAvatarProps {
   speaking: boolean;
 }
 
+type ClipKey = 'idle' | 'walk' | 'talk' | 'wave' | 'typing' | 'sitIdle' | 'nod' | 'thumbsUp';
+
+const FADE_SECONDS = 0.25;
+const ONE_SHOT_CLIPS = new Set<ClipKey>(['wave', 'nod', 'thumbsUp']);
+
+const ANIMATION_ALIASES: Record<string, ClipKey[]> = {
+  idle: ['idle'],
+  walking: ['walk'],
+  talking: ['talk', 'wave', 'idle'],
+  wave: ['wave', 'talk', 'idle'],
+  typing: ['typing', 'sitIdle', 'idle'],
+  listening: ['idle'],
+  presenting: ['talk', 'wave', 'idle'],
+  nod: ['nod', 'talk', 'idle'],
+  'sit-idle': ['sitIdle', 'idle'],
+  sit_idle: ['sitIdle', 'idle'],
+  sitidle: ['sitIdle', 'idle'],
+  'thumbs-up': ['thumbsUp', 'wave', 'idle'],
+  thumbsup: ['thumbsUp', 'wave', 'idle'],
+};
+
+const CLIP_BASENAME: Record<ClipKey, string> = {
+  idle: 'idle',
+  walk: 'walk',
+  talk: 'talk',
+  wave: 'wave',
+  typing: 'typing',
+  sitIdle: 'sit-idle',
+  nod: 'nod',
+  thumbsUp: 'thumbs-up',
+};
+
+function normalizeAnimationName(animation: string): string {
+  return animation.trim().toLowerCase().replace(/\s+/g, '-');
+}
+
+function getAvatarSlug(url: string): string {
+  const withoutQuery = url.split('?')[0];
+  const filename = withoutQuery.split('/').pop() ?? 'avatar';
+  const dot = filename.lastIndexOf('.');
+  return (dot > 0 ? filename.slice(0, dot) : filename).toLowerCase();
+}
+
+function buildClipUrls(avatarUrl: string): Record<ClipKey, string[]> {
+  const slug = getAvatarSlug(avatarUrl);
+  const entries = Object.entries(CLIP_BASENAME) as Array<[ClipKey, string]>;
+  const output = {} as Record<ClipKey, string[]>;
+  for (const [clipKey, baseName] of entries) {
+    output[clipKey] = [`/animations/${slug}-${baseName}.vrma`, `/animations/${baseName}.vrma`];
+  }
+  return output;
+}
+
+function resolveClip(
+  animation: string,
+  actions: Map<ClipKey, THREE.AnimationAction>,
+): ClipKey | null {
+  const normalized = normalizeAnimationName(animation);
+  const candidates = ANIMATION_ALIASES[normalized] ?? [normalized as ClipKey, 'idle'];
+  for (const candidate of candidates) {
+    if (actions.has(candidate)) return candidate;
+  }
+  return actions.has('idle') ? 'idle' : null;
+}
+
 function VRMAvatarInner({ url, animation, speaking }: VRMAvatarProps) {
   const { scene } = useThree();
   const vrmRef = useRef<VRM | null>(null);
   const modelRef = useRef<THREE.Group>(null);
+  const mixerRef = useRef<THREE.AnimationMixer | null>(null);
+  const actionsRef = useRef<Map<ClipKey, THREE.AnimationAction>>(new Map());
+  const currentClipRef = useRef<ClipKey | null>(null);
   const clockRef = useRef(new THREE.Clock());
   const [loadError, setLoadError] = useState(false);
   const speakingPhase = useRef(0);
 
   const cleanup = useCallback(() => {
+    if (mixerRef.current) {
+      mixerRef.current.stopAllAction();
+      mixerRef.current = null;
+    }
+    actionsRef.current.clear();
+    currentClipRef.current = null;
     if (vrmRef.current) {
-      scene.remove(vrmRef.current.scene);
+      vrmRef.current.scene.removeFromParent();
       vrmRef.current = null;
     }
-  }, [scene]);
+  }, []);
+
+  const playClip = useCallback((clip: ClipKey | null, fadeSeconds = FADE_SECONDS) => {
+    if (!clip) return;
+    const actions = actionsRef.current;
+    const nextAction = actions.get(clip);
+    if (!nextAction) return;
+
+    const previousClip = currentClipRef.current;
+    if (previousClip === clip) return;
+
+    const previousAction = previousClip ? actions.get(previousClip) : null;
+
+    nextAction.enabled = true;
+    nextAction.setEffectiveWeight(1);
+    nextAction.setEffectiveTimeScale(1);
+    nextAction.clampWhenFinished = ONE_SHOT_CLIPS.has(clip);
+    nextAction.setLoop(ONE_SHOT_CLIPS.has(clip) ? THREE.LoopOnce : THREE.LoopRepeat, Infinity);
+    nextAction.reset();
+    nextAction.play();
+
+    if (previousAction) {
+      nextAction.crossFadeFrom(previousAction, fadeSeconds, true);
+    } else {
+      nextAction.fadeIn(fadeSeconds);
+    }
+
+    currentClipRef.current = clip;
+  }, []);
 
   useEffect(() => {
-    const loader = new GLTFLoader();
-    loader.register((parser) => new VRMLoaderPlugin(parser));
+    let cancelled = false;
+    setLoadError(false);
+    cleanup();
 
-    loader.load(
-      url,
-      (gltf) => {
+    const modelLoader = new GLTFLoader();
+    modelLoader.register((parser) => new VRMLoaderPlugin(parser));
+
+    const animationLoader = new GLTFLoader();
+    animationLoader.register((parser) => new VRMAnimationLoaderPlugin(parser));
+
+    const loadClip = async (vrm: VRM, clipKey: ClipKey, candidates: string[]) => {
+      for (const candidateUrl of candidates) {
+        try {
+          const gltf = await animationLoader.loadAsync(candidateUrl);
+          const vrmAnimations = (gltf.userData?.vrmAnimations as unknown[]) ?? [];
+          const first = vrmAnimations[0];
+          if (!first) continue;
+          const clip = createVRMAnimationClip(first, vrm);
+          clip.name = clipKey;
+          return clip;
+        } catch {
+          // Try next candidate path.
+        }
+      }
+      return null;
+    };
+
+    (async () => {
+      try {
+        const gltf = await modelLoader.loadAsync(url);
+        if (cancelled) return;
+
         const vrm = gltf.userData.vrm as VRM | undefined;
         if (!vrm) {
           console.warn(`[VRMAvatar] No VRM data found in model: ${url}`);
@@ -39,148 +168,75 @@ function VRMAvatarInner({ url, animation, speaking }: VRMAvatarProps) {
           return;
         }
 
-        // Rotate model to face forward (VRM models face +Z by default)
         vrm.scene.rotation.y = Math.PI;
-
-        // One-shot diagnostic: which humanoid bones actually resolve?
-        // If any of these report false, we can't animate that limb and
-        // the model will stay in bind pose for that joint.
-        const h = vrm.humanoid;
-        console.log('[VRMAvatar] loaded', {
-          url,
-          hasHumanoid: !!h,
-          spine: !!h?.getNormalizedBoneNode('spine'),
-          leftUpperArm: !!h?.getNormalizedBoneNode('leftUpperArm'),
-          rightUpperArm: !!h?.getNormalizedBoneNode('rightUpperArm'),
-          leftUpperLeg: !!h?.getNormalizedBoneNode('leftUpperLeg'),
-          rightUpperLeg: !!h?.getNormalizedBoneNode('rightUpperLeg'),
-          leftLowerArm: !!h?.getNormalizedBoneNode('leftLowerArm'),
-          rightLowerArm: !!h?.getNormalizedBoneNode('rightLowerArm'),
-        });
-
         vrmRef.current = vrm;
         if (modelRef.current) {
           modelRef.current.add(vrm.scene);
+        } else {
+          scene.add(vrm.scene);
         }
-        clockRef.current.start();
-      },
-      undefined,
-      (error) => {
-        console.warn(`[VRMAvatar] Failed to load VRM model: ${url}`, error);
-        setLoadError(true);
-      },
-    );
 
-    return cleanup;
-  }, [url, cleanup]);
+        const mixer = new THREE.AnimationMixer(vrm.scene);
+        mixerRef.current = mixer;
+        const actions = new Map<ClipKey, THREE.AnimationAction>();
+        const clipUrls = buildClipUrls(url);
+        const clipKeys = Object.keys(clipUrls) as ClipKey[];
+
+        await Promise.all(
+          clipKeys.map(async (clipKey) => {
+            const clip = await loadClip(vrm, clipKey, clipUrls[clipKey]);
+            if (!clip || cancelled) return;
+            const action = mixer.clipAction(clip);
+            actions.set(clipKey, action);
+          }),
+        );
+
+        if (cancelled) return;
+
+        actionsRef.current = actions;
+        if (actions.size === 0) {
+          console.warn(`[VRMAvatar] No VRMA clips found for avatar ${url}`);
+        }
+
+        const initialClip = resolveClip(animation, actions);
+        playClip(initialClip);
+        clockRef.current.start();
+      } catch (error) {
+        if (!cancelled) {
+          console.warn(`[VRMAvatar] Failed to load VRM model: ${url}`, error);
+          setLoadError(true);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      cleanup();
+    };
+  }, [url, scene, cleanup, playClip]);
+
+  useEffect(() => {
+    const clip = resolveClip(animation, actionsRef.current);
+    playClip(clip);
+  }, [animation, playClip]);
 
   useFrame((_, delta) => {
     const vrm = vrmRef.current;
     if (!vrm) return;
 
-    // Update VRM internal state
-    vrm.update(delta);
-
-    const time = clockRef.current.getElapsedTime();
-
-    // Humanoid-driven idle / walk / listen / wave pose
-    if (vrm.humanoid) {
-      const spine = vrm.humanoid.getNormalizedBoneNode('spine');
-      const head = vrm.humanoid.getNormalizedBoneNode('head');
-      const leftUpperArm = vrm.humanoid.getNormalizedBoneNode('leftUpperArm');
-      const rightUpperArm = vrm.humanoid.getNormalizedBoneNode('rightUpperArm');
-      const leftLowerArm = vrm.humanoid.getNormalizedBoneNode('leftLowerArm');
-      const rightLowerArm = vrm.humanoid.getNormalizedBoneNode('rightLowerArm');
-      const leftUpperLeg = vrm.humanoid.getNormalizedBoneNode('leftUpperLeg');
-      const rightUpperLeg = vrm.humanoid.getNormalizedBoneNode('rightUpperLeg');
-
-      // Baseline rest pose — VRMs ship in T-pose (arms straight out). Push
-      // upper arms down to the sides so the default looks human, not scarecrow.
-      // NOTE: normalized VRM humanoid bones are NOT mirrored — both sides
-      // use the same-sign rotation to achieve the same visual pose.
-      const REST_ARM_Z = 1.25; // ~72° — natural shoulder abduction
-      if (leftUpperArm) {
-        leftUpperArm.rotation.z = REST_ARM_Z;
-        leftUpperArm.rotation.y = 0;
-      }
-      if (rightUpperArm) {
-        rightUpperArm.rotation.z = REST_ARM_Z;
-        rightUpperArm.rotation.y = 0;
-      }
-      // Elbows relaxed — rotation.y on the normalized lower arm is a
-      // forearm TWIST, not an elbow bend. Leaving that at 0 stops the
-      // rubber-hose look. Reset all axes so wave/listen residuals don't
-      // leak into idle.
-      if (leftLowerArm) {
-        leftLowerArm.rotation.x = 0;
-        leftLowerArm.rotation.y = 0;
-        leftLowerArm.rotation.z = 0;
-      }
-      if (rightLowerArm) {
-        rightLowerArm.rotation.x = 0;
-        rightLowerArm.rotation.y = 0;
-        rightLowerArm.rotation.z = 0;
-      }
-
-      if (animation === 'walking') {
-        // Forward lean + faster breathing
-        if (spine) {
-          spine.rotation.x = 0.06 + Math.sin(time * 6) * 0.015;
-          spine.rotation.z = Math.sin(time * 3) * 0.02;
-        }
-        // Arm swing — upper arms rotate on X in opposite phase, layered
-        // on top of the rest-pose z-roll we set above. ~1.5Hz cadence to
-        // match the 1.8 u/s walk speed set client-side.
-        const armSwing = Math.sin(time * 10) * 0.6;
-        if (leftUpperArm) leftUpperArm.rotation.x = armSwing;
-        if (rightUpperArm) rightUpperArm.rotation.x = -armSwing;
-        // Leg stride — opposite phase to same-side arm (natural cross-gait)
-        const legSwing = Math.sin(time * 10) * 0.5;
-        if (leftUpperLeg) leftUpperLeg.rotation.x = -legSwing;
-        if (rightUpperLeg) rightUpperLeg.rotation.x = legSwing;
-        if (head) {
-          head.rotation.x = Math.sin(time * 10) * 0.02;
-          head.rotation.z = 0;
-        }
-      } else {
-        if (spine) {
-          spine.rotation.x = Math.sin(time * 1.2) * 0.015;
-          spine.rotation.z = Math.sin(time * 0.8) * 0.01;
-        }
-        // Gentle idle arm sway — same sign both sides (non-mirrored bones).
-        // Opposite signs made the right arm visibly flail while the left
-        // looked still.
-        const idleSway = Math.sin(time * 1.0) * 0.03;
-        if (leftUpperArm) leftUpperArm.rotation.x = idleSway;
-        if (rightUpperArm) rightUpperArm.rotation.x = idleSway;
-        // Legs back to neutral when not walking
-        if (leftUpperLeg) leftUpperLeg.rotation.x *= 0.9;
-        if (rightUpperLeg) rightUpperLeg.rotation.x *= 0.9;
-        if (head) {
-          if (animation === 'listening') {
-            head.rotation.x = -0.05 + Math.sin(time * 0.5) * 0.01;
-          } else if (animation === 'wave') {
-            // Classic wave: upper arm overhead, elbow bent ~90° forward,
-            // forearm waggles on y-axis only. Previous version oscillated
-            // lower-arm z which combined with the y-bend to twist the mesh.
-            if (rightUpperArm) {
-              rightUpperArm.rotation.z = -1.4;
-              rightUpperArm.rotation.x = 0;
-              rightUpperArm.rotation.y = 0;
-            }
-            if (rightLowerArm) {
-              rightLowerArm.rotation.x = 1.4;
-              rightLowerArm.rotation.y = Math.sin(time * 8) * 0.5;
-              rightLowerArm.rotation.z = 0;
-            }
-            head.rotation.z = Math.sin(time * 3) * 0.04;
-          } else {
-            head.rotation.x = Math.sin(time * 0.6) * 0.02;
-            head.rotation.z = Math.sin(time * 0.4) * 0.01;
-          }
+    if (mixerRef.current) {
+      mixerRef.current.update(delta);
+      const current = currentClipRef.current;
+      if (current && ONE_SHOT_CLIPS.has(current)) {
+        const currentAction = actionsRef.current.get(current);
+        if (currentAction && !currentAction.isRunning()) {
+          playClip(resolveClip('idle', actionsRef.current), 0.2);
         }
       }
     }
+
+    vrm.update(delta);
+    const time = clockRef.current.getElapsedTime();
 
     // Speaking mouth animation via expression manager
     if (vrm.expressionManager) {

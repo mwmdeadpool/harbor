@@ -17,4 +17,20 @@
   - 2k JPG variants (diffuse, GL-convention normal, roughness)
   - Poly Haven — CC0, no attribution required (credited anyway)
 
+## Avatar Animations (Mixamo + VRM Retarget)
+
+- **animations/margot-*.vrma** — Mixamo source motions, retargeted to VRM humanoid and exported as VRMA
+  - Source: Adobe Mixamo (https://www.mixamo.com/)
+  - License: Mixamo free use for commercial and non-commercial projects (account required)
+  - Conversion pipeline: Mixamo FBX -> Blender (`VRM Add-on for Blender`) -> VRMA export
+  - Expected clip names:
+    - `margot-idle.vrma`
+    - `margot-walk.vrma`
+    - `margot-talk.vrma`
+    - `margot-wave.vrma`
+    - `margot-typing.vrma`
+    - `margot-sit-idle.vrma`
+    - `margot-thumbs-up.vrma`
+    - `margot-nod.vrma`
+
 All assets redistributable under their respective licenses.
