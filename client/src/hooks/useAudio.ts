@@ -23,8 +23,12 @@ export function useAudio() {
     return ctxRef.current;
   }, []);
 
-  const playAgentAudio = useCallback(
-    async (agentId: string, audioUrl: string, position: { x: number; y: number; z: number }) => {
+  const playBuffer = useCallback(
+    async (
+      agentId: string,
+      arrayBuffer: ArrayBuffer,
+      position: { x: number; y: number; z: number },
+    ) => {
       try {
         const ctx = ensureContext();
 
@@ -39,8 +43,6 @@ export function useAudio() {
           sourcesRef.current.delete(agentId);
         }
 
-        const response = await fetch(audioUrl);
-        const arrayBuffer = await response.arrayBuffer();
         const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
 
         const source = ctx.createBufferSource();
@@ -70,11 +72,53 @@ export function useAudio() {
         };
 
         source.start();
-      } catch {
-        // Audio playback failed — don't crash
+      } catch (err) {
+        console.warn('[harbor:audio] playback failed', { agentId, err });
       }
     },
     [ensureContext],
+  );
+
+  const playAgentAudio = useCallback(
+    async (agentId: string, audioUrl: string, position: { x: number; y: number; z: number }) => {
+      try {
+        const response = await fetch(audioUrl);
+        if (!response.ok) {
+          console.warn('[harbor:audio] fetch failed', {
+            agentId,
+            url: audioUrl,
+            status: response.status,
+          });
+          return;
+        }
+        const arrayBuffer = await response.arrayBuffer();
+        await playBuffer(agentId, arrayBuffer, position);
+      } catch (err) {
+        console.warn('[harbor:audio] playAgentAudio failed', { agentId, err });
+      }
+    },
+    [playBuffer],
+  );
+
+  const playAgentText = useCallback(
+    async (agentId: string, text: string, position: { x: number; y: number; z: number }) => {
+      try {
+        const response = await fetch('/media/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, voice: agentId }),
+        });
+        if (!response.ok) {
+          console.warn('[harbor:audio] tts request failed', { agentId, status: response.status });
+          return;
+        }
+        const arrayBuffer = await response.arrayBuffer();
+        await playBuffer(agentId, arrayBuffer, position);
+      } catch (err) {
+        console.warn('[harbor:audio] playAgentText failed', { agentId, err });
+      }
+    },
+    [playBuffer],
   );
 
   const stopAll = useCallback(() => {
@@ -107,5 +151,13 @@ export function useAudio() {
     }
   }, []);
 
-  return { playAgentAudio, stopAll, setVolume, updateListenerPosition, isReady, ensureContext };
+  return {
+    playAgentAudio,
+    playAgentText,
+    stopAll,
+    setVolume,
+    updateListenerPosition,
+    isReady,
+    ensureContext,
+  };
 }

@@ -1,9 +1,29 @@
 import express from 'express';
 import multer from 'multer';
 import pino from 'pino';
+import net from 'node:net';
 
 import { transcribe } from './stt.js';
 import { synthesize, synthesizeStream, getVoices } from './tts.js';
+
+function probeTcp(host: string, port: number, timeoutMs = 1500): Promise<boolean> {
+  return new Promise((resolve) => {
+    const s = net.createConnection({ host, port });
+    const done = (ok: boolean) => {
+      s.destroy();
+      resolve(ok);
+    };
+    const timer = setTimeout(() => done(false), timeoutMs);
+    s.once('connect', () => {
+      clearTimeout(timer);
+      done(true);
+    });
+    s.once('error', () => {
+      clearTimeout(timer);
+      done(false);
+    });
+  });
+}
 
 const log = pino({ name: 'harbor:media' });
 const PORT = parseInt(process.env.MEDIA_PORT || '3334', 10);
@@ -36,16 +56,14 @@ app.get('/media/health', async (_req, res) => {
   let sttOk = false;
   let ttsOk = false;
 
-  try {
-    const whisperUrl = process.env.WHISPER_URL || 'http://localhost:8787/v1/audio/transcriptions';
-    const sttResp = await fetch(whisperUrl, { method: 'GET' }).catch(() => null);
-    sttOk = sttResp !== null && sttResp.status < 500;
-  } catch {
-    // leave false
+  const parakeetUrl = process.env.PARAKEET_URL || 'tcp://192.168.10.2:10300';
+  const m = parakeetUrl.match(/^tcp:\/\/([^:]+):(\d+)$/);
+  if (m) {
+    sttOk = await probeTcp(m[1]!, parseInt(m[2]!, 10));
   }
 
   try {
-    const fishUrl = process.env.FISH_AUDIO_URL || 'http://localhost:8765/v1/tts';
+    const fishUrl = process.env.FISH_AUDIO_URL || 'https://api.fish.audio/v1/tts';
     const ttsResp = await fetch(fishUrl, { method: 'GET' }).catch(() => null);
     ttsOk = ttsResp !== null && ttsResp.status < 500;
   } catch {
@@ -99,7 +117,7 @@ app.post('/media/tts', async (req, res) => {
 
   try {
     if (wantsStream) {
-      res.setHeader('Content-Type', 'audio/wav');
+      res.setHeader('Content-Type', 'audio/mpeg');
       res.setHeader('Transfer-Encoding', 'chunked');
 
       for await (const chunk of synthesizeStream(text, voice)) {
@@ -108,7 +126,7 @@ app.post('/media/tts', async (req, res) => {
       res.end();
     } else {
       const audioBuffer = await synthesize(text, voice);
-      res.setHeader('Content-Type', 'audio/wav');
+      res.setHeader('Content-Type', 'audio/mpeg');
       res.setHeader('Content-Length', audioBuffer.length.toString());
       res.send(audioBuffer);
     }
