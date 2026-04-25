@@ -146,7 +146,7 @@ function VRMAvatarInner({ url, animation, speaking }: VRMAvatarProps) {
           const vrmAnimations = (gltf.userData?.vrmAnimations as unknown[]) ?? [];
           const first = vrmAnimations[0];
           if (!first) continue;
-          const clip = createVRMAnimationClip(first, vrm);
+          const clip = createVRMAnimationClip(first as any, vrm as any);
           clip.name = clipKey;
           return clip;
         } catch {

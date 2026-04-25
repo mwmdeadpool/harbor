@@ -1,0 +1,315 @@
+# Agent Notification Workflow for NanoClaw
+# Reusable workflow that sends Discord webhook notifications to agent channels
+# on PR events, main pushes, and CI failures.
+#
+# Required repository secrets:
+#   NYGMA_WEBHOOK_URL  — Nygma's Discord channel webhook
+#   HARVEY_WEBHOOK_URL — Harvey's Discord channel webhook
+#   BUD_WEBHOOK_URL    — Bud's Discord channel webhook
+#   IVY_WEBHOOK_URL    — Ivy's Discord channel webhook (optional)
+#   LOU_WEBHOOK_URL    — Lou's Discord channel webhook (optional)
+
+name: Agent Notifications
+
+on:
+  workflow_call:
+    secrets:
+      NYGMA_WEBHOOK_URL:
+        required: true
+      HARVEY_WEBHOOK_URL:
+        required: true
+      BUD_WEBHOOK_URL:
+        required: true
+      IVY_WEBHOOK_URL:
+        required: false
+      LOU_WEBHOOK_URL:
+        required: false
+
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+
+  push:
+    branches: [main]
+
+  workflow_dispatch:
+    inputs:
+      target_agent:
+        description: "Agent to notify (nygma, harvey, bud, all)"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - nygma
+          - harvey
+          - bud
+      custom_message:
+        description: "Custom message to send"
+        required: false
+        type: string
+
+jobs:
+  # ─────────────────────────────────────────────────────────
+  # Nygma: Security review on PR opened / ready_for_review
+  # ─────────────────────────────────────────────────────────
+  notify-security-review:
+    name: "Notify Nygma — Security Review"
+    runs-on: ubuntu-latest
+    if: >-
+      (github.event_name == 'pull_request' &&
+       (github.event.action == 'opened' || github.event.action == 'ready_for_review') &&
+       github.event.pull_request.draft == false) ||
+      (github.event_name == 'workflow_dispatch' &&
+       (github.event.inputs.target_agent == 'nygma' || github.event.inputs.target_agent == 'all'))
+    steps:
+      - name: Gather PR metadata
+        if: github.event_name == 'pull_request'
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "title=${{ github.event.pull_request.title }}" >> "$GITHUB_OUTPUT"
+          echo "number=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
+          echo "url=${{ github.event.pull_request.html_url }}" >> "$GITHUB_OUTPUT"
+          echo "author=${{ github.event.pull_request.user.login }}" >> "$GITHUB_OUTPUT"
+          echo "head=${{ github.event.pull_request.head.ref }}" >> "$GITHUB_OUTPUT"
+          echo "base=${{ github.event.pull_request.base.ref }}" >> "$GITHUB_OUTPUT"
+          echo "changed_files=${{ github.event.pull_request.changed_files }}" >> "$GITHUB_OUTPUT"
+          echo "action=${{ github.event.action }}" >> "$GITHUB_OUTPUT"
+
+      - name: Send Discord notification to Nygma
+        if: github.event_name == 'pull_request'
+        env:
+          WEBHOOK_URL: ${{ secrets.NYGMA_WEBHOOK_URL }}
+        run: |
+          ACTION="${{ steps.pr.outputs.action }}"
+          case "$ACTION" in
+            opened)       ACTION_LABEL="Opened" COLOR=3066993 ;;   # green
+            ready_for_review) ACTION_LABEL="Ready for Review" COLOR=15844367 ;; # gold
+            *)            ACTION_LABEL="Updated" COLOR=3447003 ;;  # blue
+          esac
+
+          PAYLOAD=$(cat <<HEREDOC
+          {
+            "username": "NanoClaw CI",
+            "avatar_url": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
+            "embeds": [{
+              "title": "New PR needs security review",
+              "description": "**#${{ steps.pr.outputs.number }}** — ${{ steps.pr.outputs.title }}",
+              "url": "${{ steps.pr.outputs.url }}",
+              "color": ${COLOR},
+              "fields": [
+                { "name": "Author", "value": "\`${{ steps.pr.outputs.author }}\`", "inline": true },
+                { "name": "Action", "value": "${ACTION_LABEL}", "inline": true },
+                { "name": "Changed Files", "value": "${{ steps.pr.outputs.changed_files }}", "inline": true },
+                { "name": "Branch", "value": "\`${{ steps.pr.outputs.head }}\` → \`${{ steps.pr.outputs.base }}\`", "inline": false },
+                { "name": "Instructions", "value": "Review this PR for security issues using \`gh-review\`. Check for secrets, injection vectors, auth bypasses, and unsafe dependencies.", "inline": false }
+              ],
+              "footer": { "text": "${{ github.repository }} • agent-notify" },
+              "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            }]
+          }
+          HEREDOC
+          )
+
+          curl -sf -X POST "$WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD" \
+            --max-time 10 \
+            --retry 2 \
+            --retry-delay 3
+
+      - name: Send custom dispatch notification to Nygma
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.custom_message != ''
+        env:
+          WEBHOOK_URL: ${{ secrets.NYGMA_WEBHOOK_URL }}
+        run: |
+          PAYLOAD=$(cat <<HEREDOC
+          {
+            "username": "NanoClaw CI",
+            "embeds": [{
+              "title": "Manual Dispatch — Nygma",
+              "description": "${{ github.event.inputs.custom_message }}",
+              "color": 10181046,
+              "footer": { "text": "${{ github.repository }} • workflow_dispatch" },
+              "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            }]
+          }
+          HEREDOC
+          )
+
+          curl -sf -X POST "$WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD" \
+            --max-time 10 \
+            --retry 2 \
+            --retry-delay 3
+
+  # ─────────────────────────────────────────────────────────
+  # Harvey: Smoke tests on push to main
+  # ─────────────────────────────────────────────────────────
+  notify-smoke-test:
+    name: "Notify Harvey — Smoke Tests"
+    runs-on: ubuntu-latest
+    if: >-
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' &&
+       (github.event.inputs.target_agent == 'harvey' || github.event.inputs.target_agent == 'all'))
+    steps:
+      - name: Gather commit metadata
+        if: github.event_name == 'push'
+        id: commit
+        run: |
+          COMMIT_MSG=$(echo '${{ github.event.head_commit.message }}' | head -1)
+          echo "message=${COMMIT_MSG}" >> "$GITHUB_OUTPUT"
+          echo "sha=${{ github.event.head_commit.id }}" >> "$GITHUB_OUTPUT"
+          echo "short_sha=$(echo '${{ github.event.head_commit.id }}' | cut -c1-7)" >> "$GITHUB_OUTPUT"
+          echo "author=${{ github.event.head_commit.author.username }}" >> "$GITHUB_OUTPUT"
+          echo "url=${{ github.event.head_commit.url }}" >> "$GITHUB_OUTPUT"
+          echo "commit_count=${{ github.event.size || 1 }}" >> "$GITHUB_OUTPUT"
+
+      - name: Send Discord notification to Harvey
+        if: github.event_name == 'push'
+        env:
+          WEBHOOK_URL: ${{ secrets.HARVEY_WEBHOOK_URL }}
+        run: |
+          PAYLOAD=$(cat <<HEREDOC
+          {
+            "username": "NanoClaw CI",
+            "avatar_url": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
+            "embeds": [{
+              "title": "New code merged to main — run smoke tests",
+              "description": "[\`${{ steps.commit.outputs.short_sha }}\`](${{ steps.commit.outputs.url }}) ${{ steps.commit.outputs.message }}",
+              "url": "${{ github.event.compare }}",
+              "color": 15105570,
+              "fields": [
+                { "name": "Author", "value": "\`${{ steps.commit.outputs.author }}\`", "inline": true },
+                { "name": "Commits", "value": "${{ steps.commit.outputs.commit_count }}", "inline": true },
+                { "name": "Branch", "value": "\`main\`", "inline": true },
+                { "name": "Instructions", "value": "Run smoke tests against the updated main branch. Verify build succeeds, container starts, and core health checks pass.", "inline": false }
+              ],
+              "footer": { "text": "${{ github.repository }} • agent-notify" },
+              "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            }]
+          }
+          HEREDOC
+          )
+
+          curl -sf -X POST "$WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD" \
+            --max-time 10 \
+            --retry 2 \
+            --retry-delay 3
+
+      - name: Send custom dispatch notification to Harvey
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.custom_message != ''
+        env:
+          WEBHOOK_URL: ${{ secrets.HARVEY_WEBHOOK_URL }}
+        run: |
+          PAYLOAD=$(cat <<HEREDOC
+          {
+            "username": "NanoClaw CI",
+            "embeds": [{
+              "title": "Manual Dispatch — Harvey",
+              "description": "${{ github.event.inputs.custom_message }}",
+              "color": 10181046,
+              "footer": { "text": "${{ github.repository }} • workflow_dispatch" },
+              "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            }]
+          }
+          HEREDOC
+          )
+
+          curl -sf -X POST "$WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD" \
+            --max-time 10 \
+            --retry 2 \
+            --retry-delay 3
+
+  # ─────────────────────────────────────────────────────────
+  # Bud: CI failure diagnosis
+  # ─────────────────────────────────────────────────────────
+  notify-ci-failure:
+    name: "Notify Bud — CI Failure"
+    runs-on: ubuntu-latest
+    if: >-
+      failure() ||
+      (github.event_name == 'workflow_dispatch' &&
+       (github.event.inputs.target_agent == 'bud' || github.event.inputs.target_agent == 'all'))
+    steps:
+      - name: Build failure context
+        if: failure()
+        id: failure
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "workflow=${{ github.workflow }}" >> "$GITHUB_OUTPUT"
+          echo "run_id=${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+          echo "run_url=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+          echo "event=${{ github.event_name }}" >> "$GITHUB_OUTPUT"
+          echo "ref=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          echo "actor=${{ github.actor }}" >> "$GITHUB_OUTPUT"
+          echo "sha=$(echo '${{ github.sha }}' | cut -c1-7)" >> "$GITHUB_OUTPUT"
+
+      - name: Send Discord notification to Bud
+        if: failure()
+        env:
+          WEBHOOK_URL: ${{ secrets.BUD_WEBHOOK_URL }}
+        run: |
+          PAYLOAD=$(cat <<HEREDOC
+          {
+            "username": "NanoClaw CI",
+            "avatar_url": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
+            "embeds": [{
+              "title": "CI failure detected — diagnose and fix",
+              "description": "Workflow **${{ steps.failure.outputs.workflow }}** failed on \`${{ steps.failure.outputs.ref }}\`",
+              "url": "${{ steps.failure.outputs.run_url }}",
+              "color": 15158332,
+              "fields": [
+                { "name": "Triggered By", "value": "\`${{ steps.failure.outputs.actor }}\`", "inline": true },
+                { "name": "Event", "value": "\`${{ steps.failure.outputs.event }}\`", "inline": true },
+                { "name": "Commit", "value": "\`${{ steps.failure.outputs.sha }}\`", "inline": true },
+                { "name": "Run ID", "value": "[${{ steps.failure.outputs.run_id }}](${{ steps.failure.outputs.run_url }})", "inline": false },
+                { "name": "Instructions", "value": "Pull the workflow logs, identify the root cause, and open a fix PR if possible. Check for flaky tests vs real failures.", "inline": false }
+              ],
+              "footer": { "text": "${{ github.repository }} • agent-notify" },
+              "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            }]
+          }
+          HEREDOC
+          )
+
+          curl -sf -X POST "$WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD" \
+            --max-time 10 \
+            --retry 2 \
+            --retry-delay 3
+
+      - name: Send custom dispatch notification to Bud
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.custom_message != ''
+        env:
+          WEBHOOK_URL: ${{ secrets.BUD_WEBHOOK_URL }}
+        run: |
+          PAYLOAD=$(cat <<HEREDOC
+          {
+            "username": "NanoClaw CI",
+            "embeds": [{
+              "title": "Manual Dispatch — Bud",
+              "description": "${{ github.event.inputs.custom_message }}",
+              "color": 10181046,
+              "footer": { "text": "${{ github.repository }} • workflow_dispatch" },
+              "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            }]
+          }
+          HEREDOC
+          )
+
+          curl -sf -X POST "$WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD" \
+            --max-time 10 \
+            --retry 2 \
+            --retry-delay 3
