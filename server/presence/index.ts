@@ -309,6 +309,17 @@ app.use(
   }),
 );
 
+// Serve VRMA animation clips from server/public/animations
+const animationsDir = path.resolve(__dirname, '../../public/animations');
+app.use(
+  '/animations',
+  express.static(animationsDir, {
+    setHeaders: (res) => {
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+    },
+  }),
+);
+
 // Proxy /media requests to Media Service (port 3334) in production
 const MEDIA_SERVICE_URL = process.env.HARBOR_MEDIA_URL || 'http://localhost:3334';
 app.use('/media', (req, res) => {
